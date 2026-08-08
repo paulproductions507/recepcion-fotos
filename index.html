@@ -246,16 +246,15 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
           Tomar foto
         </div>
-        <div id="previewBox" style="display:none">
-          <div class="preview-wrap">
-            <img id="previewImg">
-            <div class="preview-badge" id="previewBadge">original</div>
-          </div>
-          <div class="btn-row">
-            <button class="btn btn-ghost" id="retakeBtn" style="flex:1">Repetir foto</button>
-            <button class="btn btn-accent" id="processBtn" style="flex:1.4">Procesar y guardar</button>
-          </div>
-        </div>
+        <div class="hint">Al tomar la foto, el artículo se agrega de una vez a la lista. El fondo se procesa solo, en segundo plano — puedes seguir con el siguiente artículo sin esperar.</div>
+      </div>
+    </div>
+
+    <div class="card" id="aiStatusCard">
+      <h2>Estado de la IA de fondo</h2>
+      <div id="aiStatusText" class="hint" style="margin-top:0">Preparando…</div>
+      <div style="background:#0d1014;border-radius:8px;height:8px;overflow:hidden;margin-top:8px;">
+        <div id="aiProgressBar" style="background:var(--accent);height:100%;width:0%;transition:width .3s;"></div>
       </div>
     </div>
 
@@ -377,14 +376,75 @@ function fmtSize(bytes){
 }
 
 /* ---------- Carga perezosa de eliminación de fondo (IA local, gratis) ---------- */
+let _bgRemovalMod = null;
 let _bgRemovalPromise = null;
 function loadBgRemoval(){
   if(!_bgRemovalPromise){
-    toast('Cargando modelo de IA para quitar fondo (solo la primera vez)…', 4000);
-    _bgRemovalPromise = import('https://esm.sh/@imgly/background-removal@1.5.5');
+    _bgRemovalPromise = import('https://esm.sh/@imgly/background-removal@1.5.8').then(mod=>{
+      _bgRemovalMod = mod;
+      return mod;
+    });
   }
   return _bgRemovalPromise;
 }
+
+function setAiStatus(text, pct){
+  const t = $('#aiStatusText');
+  const bar = $('#aiProgressBar');
+  if(t) t.textContent = text;
+  if(bar && pct != null) bar.style.width = Math.max(0,Math.min(100,pct)) + '%';
+}
+
+/* Evita que cualquier proceso se quede pegado para siempre */
+function withTimeout(promise, ms, timeoutMsg){
+  let timer;
+  const timeout = new Promise((_, reject)=>{
+    timer = setTimeout(()=> reject(new Error(timeoutMsg || 'timeout')), ms);
+  });
+  return Promise.race([promise, timeout]).finally(()=> clearTimeout(timer));
+}
+
+async function preloadAi(){
+  setAiStatus('Descargando modelo de IA (solo la primera vez, ~40 MB)…', 4);
+  try{
+    const mod = await loadBgRemoval();
+    await withTimeout(
+      mod.preload({
+        model:'small',
+        progress: (key, current, total) => {
+          const pct = total ? Math.round((current/total)*100) : 0;
+          setAiStatus('Descargando modelo de IA (solo la primera vez)… ' + pct + '%', pct);
+        }
+      }),
+      90000,
+      'timeout de descarga'
+    );
+    setAiStatus('IA lista ✓ — las fotos se procesan en segundo plano.', 100);
+    $('#aiStatusCard').style.borderColor = 'var(--ok)';
+  }catch(err){
+    console.error(err);
+    setAiStatus('No se pudo cargar la IA (señal débil). Toca para reintentar.', 0);
+    $('#aiStatusText').style.cursor = 'pointer';
+    $('#aiStatusText').onclick = ()=>{ _bgRemovalPromise=null; preloadAi(); };
+  }
+}
+preloadAi();
+
+/* Reduce el tamaño de la foto ANTES de mandarla a la IA — esto es lo que más acelera el proceso */
+async function downscaleFile(file, maxDim=1500, quality=0.9){
+  const bitmap = await createImageBitmap(file);
+  let {width, height} = bitmap;
+  if(Math.max(width,height) > maxDim){
+    const scale = maxDim / Math.max(width,height);
+    width = Math.round(width*scale);
+    height = Math.round(height*scale);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+  return await canvasToBlob(canvas, 'image/jpeg', quality);
+}
+
 
 /* ---------- Tabs ---------- */
 $$('.tabs button').forEach(btn=>{
@@ -404,9 +464,10 @@ $$('.tabs button').forEach(btn=>{
 let fondoSel = 'blanco';
 let fileExt = 'jpg';
 $('#fileExtSel').addEventListener('change', (e)=>{ fileExt = e.target.value; });
-let currentRawFile = null;
-let currentCutoutBlob = null; // PNG con fondo transparente ya procesado por IA
-let items = []; // {id, codigo, referencia, descripcion, fondo, cutoutBlob, finalBlob, thumbUrl}
+
+let items = []; // {id, codigo, referencia, descripcion, fondo, status, cutoutBlob, finalBlob, thumbUrl, rawFile}
+let processingQueue = [];
+let isProcessing = false;
 
 $$('.fondo-opt').forEach(el=>{
   el.addEventListener('click', ()=>{
@@ -416,74 +477,99 @@ $$('.fondo-opt').forEach(el=>{
   });
 });
 
-$('#camBtnEmpty').addEventListener('click', ()=> $('#itFile').click());
-$('#retakeBtn').addEventListener('click', ()=> $('#itFile').click());
+$('#camBtnEmpty').addEventListener('click', ()=>{
+  const codigo = $('#itCodigo').value.trim();
+  const descripcion = $('#itDescripcion').value.trim();
+  if(!codigo || !descripcion){
+    toast('Completa código del sistema y descripción antes de tomar la foto.');
+    return;
+  }
+  $('#itFile').click();
+});
 
 $('#itFile').addEventListener('change', (e)=>{
   const file = e.target.files[0];
   if(!file) return;
-  currentRawFile = file;
-  currentCutoutBlob = null;
-  const url = URL.createObjectURL(file);
-  $('#previewImg').src = url;
-  $('#previewBadge').textContent = 'original · ' + fmtSize(file.size);
-  $('#camBtnEmpty').style.display = 'none';
-  $('#previewBox').style.display = '';
-  $('#processBtn').textContent = 'Procesar y guardar';
-  $('#processBtn').disabled = false;
-});
 
-$('#processBtn').addEventListener('click', async ()=>{
-  if(!currentRawFile){ toast('Primero toma una foto.'); return; }
   const codigo = $('#itCodigo').value.trim();
   const referencia = $('#itReferencia').value.trim();
   const descripcion = $('#itDescripcion').value.trim();
-  if(!codigo || !descripcion){
-    toast('Completa al menos el código del sistema y la descripción.');
-    return;
-  }
 
-  const btn = $('#processBtn');
-  const originalLabel = btn.textContent;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>Quitando fondo…';
+  const item = {
+    id: 'it_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    codigo, referencia, descripcion,
+    fondo: fondoSel,
+    status: 'queued', // queued -> processing -> ready / error
+    cutoutBlob: null,
+    finalBlob: null,
+    thumbUrl: URL.createObjectURL(file),
+    rawFile: file
+  };
+  items.push(item);
+  renderItems();
+  processingQueue.push(item);
+  runQueue();
 
-  try{
-    const { removeBackground } = await loadBgRemoval();
-    const cutout = await removeBackground(currentRawFile); // PNG transparente
-    currentCutoutBlob = cutout;
-
-    const finalBlob = await composeFinal(cutout, fondoSel);
-
-    const item = {
-      id: 'it_' + Date.now(),
-      codigo, referencia, descripcion,
-      fondo: fondoSel,
-      cutoutBlob: cutout,
-      finalBlob,
-      thumbUrl: URL.createObjectURL(finalBlob)
-    };
-    items.push(item);
-    renderItems();
-
-    // reset form para el siguiente artículo
-    $('#itCodigo').value = '';
-    $('#itReferencia').value = '';
-    $('#itDescripcion').value = '';
-    $('#itFile').value = '';
-    currentRawFile = null; currentCutoutBlob = null;
-    $('#previewBox').style.display = 'none';
-    $('#camBtnEmpty').style.display = '';
-    toast('Artículo guardado (' + fmtSize(finalBlob.size) + ').');
-  }catch(err){
-    console.error(err);
-    toast('No se pudo quitar el fondo. Revisa tu conexión e intenta de nuevo.');
-    btn.textContent = originalLabel;
-  }finally{
-    btn.disabled = false;
-    btn.textContent = originalLabel;
-  }
+  // limpiar el formulario de una vez para el siguiente artículo
+  $('#itCodigo').value = '';
+  $('#itReferencia').value = '';
+  $('#itDescripcion').value = '';
+  $('#itFile').value = '';
+  toast('Agregado — procesando fondo en segundo plano.');
+  $('#itCodigo').focus();
 });
+
+async function runQueue(){
+  if(isProcessing) return;
+  isProcessing = true;
+  while(processingQueue.length){
+    const item = processingQueue.shift();
+    if(item.status === 'removed') continue;
+    item.status = 'processing';
+    renderItems();
+    try{
+      const small = await downscaleFile(item.rawFile, 1500, 0.9);
+      const mod = await loadBgRemoval();
+      const cutout = await withTimeout(
+        mod.default(small, {
+          model: 'small',
+          output: { format:'image/png', quality:0.8 },
+          progress: (key, current, total)=>{
+            const pct = total ? Math.round((current/total)*100) : 0;
+            setAiStatus('Procesando artículo ' + item.codigo + '… ' + pct + '%', pct);
+          }
+        }),
+        40000,
+        'timeout de procesamiento'
+      );
+      item.cutoutBlob = cutout;
+      const finalBlob = await composeFinal(cutout, item.fondo);
+      item.finalBlob = finalBlob;
+      URL.revokeObjectURL(item.thumbUrl);
+      item.thumbUrl = URL.createObjectURL(finalBlob);
+      item.status = 'ready';
+    }catch(err){
+      console.error(err);
+      item.status = 'error';
+      item.errorMsg = (err && err.message === 'timeout de procesamiento')
+        ? 'Tardó demasiado (señal débil)'
+        : 'No se pudo procesar';
+    }
+    renderItems();
+  }
+  isProcessing = false;
+  setAiStatus('IA lista ✓ — en espera de la próxima foto.', 100);
+}
+
+function retryItem(id){
+  const item = items.find(i=>i.id===id);
+  if(!item) return;
+  item.status = 'queued';
+  processingQueue.push(item);
+  runQueue();
+  renderItems();
+}
+
 
 async function composeFinal(cutoutBlob, fondo){
   const img = await fileToImageBitmap(cutoutBlob);
@@ -508,33 +594,43 @@ function renderItems(){
   items.forEach(item=>{
     const el = document.createElement('div');
     el.className = 'item';
+    let statusBadge = '';
+    if(item.status === 'ready') statusBadge = `<span class="badge-status ready">fondo ${item.fondo}</span>`;
+    else if(item.status === 'processing') statusBadge = `<span class="badge-status pending"><span class="spinner" style="border-top-color:#e8b93d;width:11px;height:11px;margin-right:5px"></span>procesando fondo…</span>`;
+    else if(item.status === 'queued') statusBadge = `<span class="badge-status pending">en cola…</span>`;
+    else if(item.status === 'error') statusBadge = `<span class="badge-status pending" style="background:#3a1414;color:#ff8080">${item.errorMsg || 'error'} — toca reintentar</span>`;
+
     el.innerHTML = `
       <img src="${item.thumbUrl}">
       <div class="meta">
         <div class="l1">${item.codigo}</div>
         <div class="l2">${item.descripcion} · ${item.referencia || 's/ref'}</div>
-        <span class="badge-status ready">fondo ${item.fondo}</span>
+        ${statusBadge}
       </div>
       <div class="actions">
-        <button class="icon-btn" data-act="toggle" title="Cambiar fondo">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-        </button>
+        ${item.status==='error' ? `<button class="icon-btn" data-act="retry" title="Reintentar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button>` : ''}
+        ${item.status==='ready' ? `<button class="icon-btn" data-act="toggle" title="Cambiar fondo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>` : ''}
         <button class="icon-btn danger" data-act="del" title="Eliminar">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
         </button>
       </div>
     `;
     el.querySelector('[data-act=del]').addEventListener('click', ()=>{
+      item.status = 'removed';
       items = items.filter(i=>i.id!==item.id);
       renderItems();
     });
-    el.querySelector('[data-act=toggle]').addEventListener('click', async (e)=>{
+    const retryBtn = el.querySelector('[data-act=retry]');
+    if(retryBtn) retryBtn.addEventListener('click', ()=> retryItem(item.id));
+    const toggleBtn = el.querySelector('[data-act=toggle]');
+    if(toggleBtn) toggleBtn.addEventListener('click', async (e)=>{
       const b = e.currentTarget;
       b.innerHTML = '<span class="spinner" style="border-top-color:#fff"></span>';
       const newFondo = item.fondo === 'negro' ? 'blanco' : 'negro';
       const finalBlob = await composeFinal(item.cutoutBlob, newFondo);
       item.fondo = newFondo;
       item.finalBlob = finalBlob;
+      URL.revokeObjectURL(item.thumbUrl);
       item.thumbUrl = URL.createObjectURL(finalBlob);
       renderItems();
     });
@@ -566,6 +662,19 @@ if(SpeechRec){
 /* ---------- Generar ZIP final del recibo ---------- */
 $('#finishBtn').addEventListener('click', async ()=>{
   if(!items.length){ toast('Agrega al menos un artículo.'); return; }
+
+  const pending = items.filter(i=> i.status==='queued' || i.status==='processing');
+  const errored = items.filter(i=> i.status==='error');
+
+  if(pending.length){
+    toast('Todavía faltan ' + pending.length + ' foto(s) por procesar. Espera un momento y toca de nuevo.');
+    return;
+  }
+  if(errored.length){
+    toast(errored.length + ' foto(s) quedaron en error. Reintenta esas antes de generar el ZIP.');
+    return;
+  }
+
   const numero = $('#reciboNumero').value.trim() || 'SIN_NUMERO';
   const proveedor = $('#reciboProveedor').value.trim() || 'SIN_PROVEEDOR';
 
