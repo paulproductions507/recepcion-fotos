@@ -1,0 +1,10 @@
+/*
+  Cross-Origin isolation is required by the browser AI runtime
+  for SharedArrayBuffer / multi-threaded WASM.
+  Keep this file in public/ for Cloudflare Pages.
+  If external model assets are blocked by a future CDN policy,
+  host the model assets locally and point publicPath to /imgly/.
+  */
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: same-origin
