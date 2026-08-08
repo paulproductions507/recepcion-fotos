@@ -530,8 +530,12 @@ async function runQueue(){
     try{
       const small = await downscaleFile(item.rawFile, 1500, 0.9);
       const mod = await loadBgRemoval();
+      const removeBgFn = (typeof mod.default === 'function') ? mod.default : mod.removeBackground;
+      if(typeof removeBgFn !== 'function'){
+        throw new Error('removeBackground no disponible en el módulo cargado');
+      }
       const cutout = await withTimeout(
-        mod.default(small, {
+        removeBgFn(small, {
           model: 'small',
           output: { format:'image/png', quality:0.8 },
           progress: (key, current, total)=>{
@@ -551,9 +555,11 @@ async function runQueue(){
     }catch(err){
       console.error(err);
       item.status = 'error';
-      item.errorMsg = (err && err.message === 'timeout de procesamiento')
-        ? 'Tardó demasiado (señal débil)'
-        : 'No se pudo procesar';
+      if(err && err.message === 'timeout de procesamiento'){
+        item.errorMsg = 'Tardó demasiado (señal débil)';
+      }else{
+        item.errorMsg = 'Error: ' + ((err && err.message) ? String(err.message).slice(0,100) : 'desconocido');
+      }
     }
     renderItems();
   }
