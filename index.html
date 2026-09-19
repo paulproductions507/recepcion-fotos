@@ -1,13 +1,567 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#111827" />
-  <title>Recibos & Catálogo</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Feria Foto → Producto</title>
+<style>
+:root{
+  --bg:#f4f6f8; --card:#fff; --text:#17202a; --muted:#667085;
+  --line:#dfe4ea; --accent:#111827; --accent2:#2563eb;
+  --ok:#138a4b; --warn:#b45309; --danger:#c62828;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+button,input,select{font:inherit}
+button{border:0;border-radius:12px;padding:13px 16px;font-weight:700;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+.app{max-width:1050px;margin:0 auto;padding:16px 14px 34px}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+h1{font-size:23px;margin:0 0 4px}
+.subtitle{color:var(--muted);font-size:14px}
+.badge{padding:7px 10px;border-radius:999px;background:#e9eef5;font-size:12px;font-weight:800;white-space:nowrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:15px;margin-bottom:13px;box-shadow:0 2px 8px #0000000a}
+.camera-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.primary{background:var(--accent);color:#fff}
+.secondary{background:#edf2f7;color:#17202a}
+.blue{background:var(--accent2);color:#fff}
+.green{background:#137a43;color:#fff}
+.danger{background:#fff0f0;color:var(--danger);border:1px solid #ffd2d2}
+.field{display:flex;gap:8px;margin-top:12px}
+.field input{flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:13px 12px;font-size:18px;outline:none}
+.field input:focus{border-color:#6b8de3;box-shadow:0 0 0 3px #2563eb18}
+.settings{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.setting{border:1px solid var(--line);border-radius:12px;padding:10px}
+.setting label{display:block;font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;margin-bottom:5px}
+.setting select{width:100%;border:0;background:transparent;font-weight:700;outline:none}
+.status{display:flex;align-items:center;gap:10px}
+.dot{width:10px;height:10px;border-radius:50%;background:#9aa4b2}
+.dot.ok{background:var(--ok)} .dot.warn{background:#d97706} .dot.busy{background:#2563eb;animation:pulse 1.1s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.progress{height:8px;background:#e9edf2;border-radius:99px;overflow:hidden;margin-top:8px}
+.progress>div{height:100%;width:0;background:#2563eb;transition:width .2s}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.toolbar-left{display:flex;gap:8px;align-items:center}
+.toolbar-right{display:flex;gap:8px;flex-wrap:wrap}
+.checkall{display:flex;align-items:center;gap:8px;font-weight:800}
+input[type=checkbox]{width:19px;height:19px}
+.count{color:var(--muted);font-size:13px}
+.list{display:grid;gap:10px;margin-top:12px}
+.item{display:grid;grid-template-columns:28px 90px 1fr auto;gap:11px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:9px}
+.thumb{width:90px;height:90px;border-radius:10px;object-fit:cover;background:#f1f3f5;border:1px solid var(--line)}
+.item-title{font-weight:900;font-size:16px;word-break:break-word}
+.item-meta{font-size:12px;color:var(--muted);margin-top:3px}
+.state{font-size:12px;font-weight:800;margin-top:7px}
+.state.ok{color:var(--ok)} .state.busy{color:#2563eb}.state.warn{color:var(--warn)} .state.err{color:var(--danger)}
+.item-actions{display:flex;gap:6px;align-items:center}
+.iconbtn{padding:9px 11px;background:#edf2f7;color:#17202a}
+.empty{padding:28px 14px;text-align:center;color:var(--muted);border:1px dashed #cbd3dd;border-radius:14px}
+.hidden{display:none!important}
+.help{font-size:12px;color:var(--muted);line-height:1.45}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#111827;color:#fff;padding:12px 15px;border-radius:12px;z-index:20;max-width:90%;font-size:13px;box-shadow:0 8px 30px #0004}
+.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:flex-end;justify-content:center;z-index:30}
+.modal-card{background:#fff;width:100%;max-width:620px;border-radius:20px 20px 0 0;padding:18px}
+.modal-card h2{margin:0 0 8px;font-size:19px}
+.modal-actions{display:flex;gap:8px;margin-top:14px}
+@media(min-width:700px){
+ .modal{align-items:center;padding:20px}.modal-card{border-radius:20px}
+}
+@media(max-width:620px){
+ .settings{grid-template-columns:1fr}
+ .camera-grid{grid-template-columns:1fr}
+ .item{grid-template-columns:24px 72px 1fr}
+ .thumb{width:72px;height:72px}
+ .item-actions{grid-column:3}
+ .item-actions button{flex:1}
+}
+</style>
 </head>
 <body>
-  <div id="app"></div>
-  <script type="module" src="/main.js"></script>
+<div class="app">
+  <header>
+    <div>
+      <h1>Feria Foto → Producto</h1>
+      <div class="subtitle">Toma la foto, asigna el número y deja que la app limpie el fondo.</div>
+    </div>
+    <div class="badge">LOCAL · V1.0</div>
+  </header>
+
+  <section class="card">
+    <div class="camera-grid">
+      <button id="cameraBtn" class="primary">📷 Tomar foto</button>
+      <button id="galleryBtn" class="secondary">🖼️ Elegir de galería</button>
+    </div>
+    <input id="cameraInput" class="hidden" type="file" accept="image/*" capture="environment">
+    <input id="galleryInput" class="hidden" type="file" accept="image/*" multiple>
+    <div class="field">
+      <input id="productInput" inputmode="text" autocomplete="off" placeholder="Número del producto" aria-label="Número del producto">
+      <button id="addBtn" class="blue">Agregar</button>
+    </div>
+    <div class="help" style="margin-top:8px">Cada foto queda ligada al número que escribas. El nombre final será exactamente ese número + .JPG/.JPEG.</div>
+  </section>
+
+  <section class="card">
+    <div class="status">
+      <span id="statusDot" class="dot"></span>
+      <div style="flex:1">
+        <div id="aiStatus" style="font-weight:900">Preparando IA local…</div>
+        <div id="aiDetail" class="help">La primera vez se descarga y queda en caché del navegador. Las fotos no se envían a un servidor.</div>
+        <div class="progress"><div id="aiProgress"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="settings">
+      <div class="setting">
+        <label>Fondo</label>
+        <select id="bgSelect">
+          <option value="white">Blanco</option>
+          <option value="dark">Oscuro</option>
+        </select>
+      </div>
+      <div class="setting">
+        <label>Formato</label>
+        <select id="formatSelect">
+          <option value="jpg">JPG</option>
+          <option value="jpeg">JPEG</option>
+        </select>
+      </div>
+      <div class="setting">
+        <label>Máximo</label>
+        <select id="maxSelect">
+          <option value="3000">3,000 px</option>
+          <option value="2500">2,500 px</option>
+          <option value="2000">2,000 px</option>
+          <option value="1500">1,500 px</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <label class="checkall"><input id="selectAll" type="checkbox"> Seleccionar todas</label>
+        <span id="countLabel" class="count">0 fotos</span>
+      </div>
+      <div class="toolbar-right">
+        <button id="processBtn" class="secondary">✨ Procesar seleccionadas</button>
+        <button id="exportBtn" class="green">⬇️ ZIP seleccionado</button>
+        <button id="clearBtn" class="danger">Limpiar</button>
+      </div>
+    </div>
+    <div id="list" class="list"></div>
+  </section>
+
+  <section class="card help">
+    <b>Cómo trabaja:</b> las fotos y la configuración se guardan en el dispositivo. La IA intenta aislar el producto, luego lo centra y lo coloca sobre el fondo elegido. La salida nunca supera el lado mayor configurado; por defecto es 3,000 px.
+  </section>
+</div>
+
+<div id="numberModal" class="modal hidden">
+  <div class="modal-card">
+    <h2>Asignar número de producto</h2>
+    <div class="help">La foto ya está tomada. Escribe el número que debe identificarla.</div>
+    <div class="field"><input id="modalProduct" inputmode="text" autocomplete="off" placeholder="Ej. 123456"></div>
+    <div class="modal-actions">
+      <button id="cancelModal" class="secondary" style="flex:1">Cancelar</button>
+      <button id="confirmModal" class="blue" style="flex:1">Agregar y procesar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script type="module">
+import { AutoModel, AutoProcessor, RawImage, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
+
+env.allowRemoteModels = true;
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+
+const MODEL_ID = "studioludens/birefnet-lite-512";
+const DB_NAME = "feria-foto-producto-v1";
+const STORE = "photos";
+const SETTINGS_KEY = "feria-foto-settings-v1";
+
+const $ = id => document.getElementById(id);
+const state = {
+  photos: new Map(),
+  pendingBlob: null,
+  model: null,
+  processor: null,
+  loadingPromise: null,
+  selected: new Set(),
+};
+
+function toast(msg){
+  const el=$("toast"); el.textContent=msg; el.classList.remove("hidden");
+  clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.add("hidden"),3000);
+}
+
+function saveSettings(){
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+    bg:$("bgSelect").value, format:$("formatSelect").value, max:$("maxSelect").value
+  }));
+}
+function loadSettings(){
+  try{
+    const s=JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}");
+    if(s.bg) $("bgSelect").value=s.bg;
+    if(s.format) $("formatSelect").value=s.format;
+    if(s.max) $("maxSelect").value=s.max;
+  }catch{}
+}
+$("bgSelect").onchange=saveSettings; $("formatSelect").onchange=saveSettings; $("maxSelect").onchange=saveSettings;
+
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DB_NAME,1);
+    req.onupgradeneeded=()=>req.result.createObjectStore(STORE,{keyPath:"id"});
+    req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error);
+  });
+}
+async function dbPut(row){ const db=await openDB(); return new Promise((res,rej)=>{const tx=db.transaction(STORE,"readwrite");tx.objectStore(STORE).put(row);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
+async function dbAll(){ const db=await openDB(); return new Promise((res,rej)=>{const tx=db.transaction(STORE,"readonly");const q=tx.objectStore(STORE).getAll();q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error);});}
+async function dbDelete(id){ const db=await openDB(); return new Promise((res,rej)=>{const tx=db.transaction(STORE,"readwrite");tx.objectStore(STORE).delete(id);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
+async function dbClear(){ const db=await openDB(); return new Promise((res,rej)=>{const tx=db.transaction(STORE,"readwrite");tx.objectStore(STORE).clear();tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
+
+function setAIStatus(text, kind="", progress=null){
+  $("aiStatus").textContent=text;
+  $("statusDot").className="dot "+kind;
+  if(progress!==null) $("aiProgress").style.width=Math.max(0,Math.min(100,progress))+"%";
+}
+
+async function loadAI(){
+  if(state.loadingPromise) return state.loadingPromise;
+  state.loadingPromise=(async()=>{
+    try{
+      setAIStatus("Preparando IA local…","busy",2);
+      const progress_callback = p=>{
+        if(typeof p?.progress==="number") setAIStatus("Descargando IA local…","busy",p.progress);
+        else if(p?.status==="progress" && typeof p.progress==="number") setAIStatus("Descargando IA local…","busy",p.progress);
+      };
+      state.model=await AutoModel.from_pretrained(MODEL_ID,{dtype:"fp16",device:"webgpu",progress_callback}).catch(
+        ()=>AutoModel.from_pretrained(MODEL_ID,{dtype:"fp16",device:"wasm",progress_callback})
+      );
+      state.processor=await AutoProcessor.from_pretrained(MODEL_ID,{progress_callback});
+      setAIStatus("IA local lista","ok",100);
+      $("aiDetail").textContent="Procesamiento en el dispositivo. No se suben las fotos.";
+    }catch(err){
+      console.error(err);
+      setAIStatus("IA no disponible; se usará recorte local","warn",100);
+      $("aiDetail").textContent="Puedes seguir trabajando. El modo local rápido intenta aislar el producto sin subir la foto.";
+    }
+  })();
+  return state.loadingPromise;
+}
+
+async function blobToImage(blob){
+  const url=URL.createObjectURL(blob);
+  try{
+    const img=new Image();
+    img.decoding="async";
+    img.src=url;
+    await img.decode();
+    return img;
+  }finally{
+    URL.revokeObjectURL(url);
+  }
+}
+
+function canvasFromImage(img,maxSide){
+  const ratio=Math.min(1,maxSide/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
+  const w=Math.max(1,Math.round((img.naturalWidth||img.width)*ratio));
+  const h=Math.max(1,Math.round((img.naturalHeight||img.height)*ratio));
+  const c=document.createElement("canvas"); c.width=w;c.height=h;
+  const ctx=c.getContext("2d",{willReadFrequently:true});
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+  ctx.drawImage(img,0,0,w,h);
+  return c;
+}
+
+async function aiMask(blob, imgW, imgH){
+  if(!state.model || !state.processor) throw new Error("AI no lista");
+  const raw=await RawImage.read(blob);
+  const {pixel_values}=await state.processor(raw);
+  const out=await state.model({input_image:pixel_values});
+  if(!out.logits) throw new Error("El modelo no devolvió máscara");
+  const t=out.logits;
+  const data=t.data;
+  const dims=t.dims;
+  const mh=dims[dims.length-2], mw=dims[dims.length-1];
+  const maskCanvas=document.createElement("canvas"); maskCanvas.width=mw;maskCanvas.height=mh;
+  const mctx=maskCanvas.getContext("2d");
+  const md=mctx.createImageData(mw,mh);
+  for(let i=0;i<mw*mh;i++){
+    const v=1/(1+Math.exp(-data[i]));
+    const a=Math.round(v*255);
+    md.data[i*4]=a;md.data[i*4+1]=a;md.data[i*4+2]=a;md.data[i*4+3]=255;
+  }
+  mctx.putImageData(md,0,0);
+  const full=document.createElement("canvas"); full.width=imgW;full.height=imgH;
+  const fctx=full.getContext("2d");
+  fctx.imageSmoothingEnabled=true;fctx.imageSmoothingQuality="high";
+  fctx.drawImage(maskCanvas,0,0,imgW,imgH);
+  return full;
+}
+
+function smartMask(canvas){
+  // Fallback intentionally conservative: removes pixels close to the border's
+  // dominant background color, then keeps the largest connected foreground.
+  const w=canvas.width,h=canvas.height,ctx=canvas.getContext("2d",{willReadFrequently:true});
+  const im=ctx.getImageData(0,0,w,h), d=im.data;
+  const samples=[];
+  const step=Math.max(1,Math.floor(Math.min(w,h)/80));
+  for(let y=0;y<h;y+=step){
+    for(let x=0;x<w;x+=step){
+      if(x<step*2||y<step*2||x>w-step*3||y>h-step*3){
+        const i=(y*w+x)*4;samples.push([d[i],d[i+1],d[i+2]]);
+      }
+    }
+  }
+  const med=a=>a.sort((x,y)=>x-y)[Math.floor(a.length/2)]||0;
+  const br=[med(samples.map(s=>s[0])),med(samples.map(s=>s[1])),med(samples.map(s=>s[2]))];
+  const mask=new Uint8Array(w*h);
+  const q=[];
+  const dist=(i)=>{
+    const dr=d[i]-br[0],dg=d[i+1]-br[1],db=d[i+2]-br[2];
+    return Math.sqrt(dr*dr+dg*dg+db*db);
+  };
+  // Flood from borders through pixels similar to border color.
+  const seen=new Uint8Array(w*h);
+  const threshold=58;
+  const push=(x,y)=>{if(x<0||y<0||x>=w||y>=h)return;const p=y*w+x;if(seen[p])return;if(dist(p*4)<threshold){seen[p]=1;q.push(p)}};
+  for(let x=0;x<w;x++){push(x,0);push(x,h-1)}
+  for(let y=0;y<h;y++){push(0,y);push(w-1,y)}
+  while(q.length){
+    const p=q.pop(),x=p%w,y=(p/w)|0;
+    mask[p]=255;push(x+1,y);push(x-1,y);push(x,y+1);push(x,y-1);
+  }
+  const out=document.createElement("canvas");out.width=w;out.height=h;
+  const o=out.getContext("2d");const od=o.createImageData(w,h);
+  for(let p=0;p<w*h;p++){const a=255-mask[p];od.data[p*4]=a;od.data[p*4+1]=a;od.data[p*4+2]=a;od.data[p*4+3]=255}
+  o.putImageData(od,0,0);return out;
+}
+
+function applyMaskAndCrop(imgCanvas,maskCanvas,bg,maxSide){
+  const w=imgCanvas.width,h=imgCanvas.height;
+  const mctx=maskCanvas.getContext("2d",{willReadFrequently:true});
+  const md=mctx.getImageData(0,0,w,h).data;
+  // Find bounding box of meaningful alpha.
+  let minX=w,minY=h,maxX=-1,maxY=-1;
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const a=md[(y*w+x)*4];
+      if(a>30){if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y}
+    }
+  }
+  if(maxX<0) return imgCanvas;
+  const pad=Math.max(8,Math.round(Math.min(w,h)*0.025));
+  minX=Math.max(0,minX-pad);minY=Math.max(0,minY-pad);maxX=Math.min(w-1,maxX+pad);maxY=Math.min(h-1,maxY+pad);
+  let cw=maxX-minX+1,ch=maxY-minY+1;
+  const scale=Math.min(1,maxSide/Math.max(cw,ch));
+  const ow=Math.max(1,Math.round(cw*scale)),oh=Math.max(1,Math.round(ch*scale));
+  const out=document.createElement("canvas");out.width=ow;out.height=oh;
+  const o=out.getContext("2d");o.imageSmoothingEnabled=true;o.imageSmoothingQuality="high";
+  o.fillStyle=bg==="dark"?"#1b1f24":"#ffffff";o.fillRect(0,0,ow,oh);
+  const temp=document.createElement("canvas");temp.width=cw;temp.height=ch;
+  const tc=temp.getContext("2d");
+  tc.drawImage(imgCanvas,minX,minY,cw,ch,0,0,cw,ch);
+  const td=tc.getImageData(0,0,cw,ch);
+  for(let y=0;y<ch;y++) for(let x=0;x<cw;x++) td.data[(y*cw+x)*4+3]=md[((minY+y)*w+(minX+x))*4];
+  tc.putImageData(td,0,0);
+  o.drawImage(temp,0,0,ow,oh);
+  return out;
+}
+
+async function canvasBlob(canvas,format){
+  return new Promise((resolve,reject)=>{
+    canvas.toBlob(b=>b?resolve(b):reject(new Error("No se pudo generar la imagen")), "image/jpeg", .90);
+  });
+}
+
+async function processBlob(blob){
+  const img=await blobToImage(blob);
+  const maxSide=Number($("maxSelect").value);
+  const base=canvasFromImage(img,maxSide);
+  let mask;
+  try{
+    await loadAI();
+    if(state.model && state.processor) mask=await aiMask(blob,base.width,base.height);
+  }catch(err){ console.warn("AI fallback",err); }
+  if(!mask) mask=smartMask(base);
+  const out=applyMaskAndCrop(base,mask,$("bgSelect").value,maxSide);
+  return await canvasBlob(out,$("formatSelect").value);
+}
+
+async function addPhoto(blob, product){
+  product=String(product||"").trim();
+  if(!product){toast("Escribe el número del producto.");return;}
+  if([...state.photos.values()].some(p=>p.product===product)){toast("Ese número de producto ya existe en la lista.");return;}
+  const id=crypto.randomUUID();
+  const row={id,product,original:blob,output:null,status:"queued",created:Date.now()};
+  state.photos.set(id,row); state.selected.add(id);
+  await dbPut(row); render();
+  processOne(id);
+}
+
+async function processOne(id){
+  const row=state.photos.get(id); if(!row)return;
+  row.status="processing"; render(); await dbPut(row);
+  try{
+    row.output=await processBlob(row.original);
+    row.status="done";
+  }catch(e){
+    console.error(e); row.status="error"; row.error=e?.message||"Error";
+  }
+  await dbPut(row); render();
+}
+
+async function processSelected(){
+  const ids=state.selected.size?Array.from(state.selected):Array.from(state.photos.keys());
+  if(!ids.length){toast("No hay fotos.");return}
+  for(const id of ids){const row=state.photos.get(id); if(row) await processOne(id);}
+  toast("Proceso terminado.");
+}
+
+function formatBytes(n){return n<1048576?(n/1024).toFixed(0)+" KB":(n/1048576).toFixed(1)+" MB"}\nfunction safeFileName(s){return String(s).trim().replace(/[\\/:*?"<>|]+/g,"_").replace(/\\s+/g,"_")||"producto"}
+
+function render(){
+  const list=$("list"); list.innerHTML="";
+  const rows=[...state.photos.values()].sort((a,b)=>a.created-b.created);
+  $("countLabel").textContent=`${rows.length} ${rows.length===1?"foto":"fotos"}`;
+  $("selectAll").checked=rows.length>0 && rows.every(r=>state.selected.has(r.id));
+  if(!rows.length){list.innerHTML='<div class="empty">Todavía no hay fotos. Toma la primera y asígnale el número.</div>';return}
+  for(const r of rows){
+    const el=document.createElement("div");el.className="item";
+    const checked=state.selected.has(r.id);
+    const src=r.output||r.original; const url=URL.createObjectURL(src);
+    el.innerHTML=`
+      <input class="pick" type="checkbox" ${checked?"checked":""} aria-label="Seleccionar ${escapeHtml(r.product)}">
+      <img class="thumb" src="${url}">
+      <div>
+        <div class="item-title">${escapeHtml(r.product)}</div>
+        <div class="item-meta">${r.output?formatBytes(r.output.size):formatBytes(r.original.size)} · ${r.output?($("maxSelect").value+" px máx."):"pendiente"}</div>
+        <div class="state ${r.status==="done"?"ok":r.status==="processing"?"busy":r.status==="error"?"err":"warn"}">
+          ${r.status==="done"?"✓ Listo para ZIP":r.status==="processing"?"⏳ Procesando…":r.status==="error"?"⚠ "+escapeHtml(r.error||"Error"):"• En cola"}
+        </div>
+      </div>
+      <div class="item-actions">
+        <button class="iconbtn view">Ver</button>
+        <button class="iconbtn redo">↻</button>
+        <button class="iconbtn del">×</button>
+      </div>`;
+    const pick=el.querySelector(".pick");
+    pick.onchange=()=>{if(pick.checked)state.selected.add(r.id);else state.selected.delete(r.id);render()};
+    el.querySelector(".view").onclick=()=>openPreview(r);
+    el.querySelector(".redo").onclick=()=>processOne(r.id);
+    el.querySelector(".del").onclick=async()=>{state.photos.delete(r.id);state.selected.delete(r.id);await dbDelete(r.id);render()};
+    list.appendChild(el);
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+  }
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+
+function openPreview(r){
+  const url=URL.createObjectURL(r.output||r.original);
+  const m=document.createElement("div");m.className="modal";
+  m.innerHTML=`<div class="modal-card" style="max-width:760px"><h2>${escapeHtml(r.product)}</h2><img src="${url}" style="width:100%;max-height:70vh;object-fit:contain;border-radius:12px;background:#eee"><div class="modal-actions"><button class="secondary close" style="flex:1">Cerrar</button></div></div>`;
+  m.querySelector(".close").onclick=()=>{URL.revokeObjectURL(url);m.remove()};
+  document.body.appendChild(m);
+}
+
+function crc32(bytes){
+  let c=0^(-1);
+  for(let i=0;i<bytes.length;i++){c=(c>>>8)^CRC[(c^bytes[i])&0xff]}
+  return (c^(-1))>>>0;
+}
+const CRC=new Uint32Array(256);
+for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);CRC[n]=c>>>0}
+
+function u16(n){return new Uint8Array([n&255,(n>>>8)&255])}
+function u32(n){return new Uint8Array([n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255])}
+function cat(...arrs){const total=arrs.reduce((a,x)=>a+x.length,0),out=new Uint8Array(total);let o=0;for(const a of arrs){out.set(a,o);o+=a.length}return out}
+
+async function makeZip(files){
+  const parts=[], central=[]; let offset=0;
+  for(const f of files){
+    const name=new TextEncoder().encode(f.name), data=new Uint8Array(await f.blob.arrayBuffer()), crc=crc32(data);
+    const local=cat(new Uint8Array([80,75,3,4]),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0),name,data);
+    parts.push(local);
+    const cen=cat(new Uint8Array([80,75,1,2]),u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset),name);
+    central.push(cen); offset+=local.length;
+  }
+  const cd=cat(...central); const body=cat(...parts,cd);
+  const eocd=cat(new Uint8Array([80,75,5,6]),u16(0),u16(0),u16(files.length),u16(files.length),u32(cd.length),u32(offset),u16(0));
+  return new Blob([body,eocd],{type:"application/zip"});
+}
+
+async function exportZip(){
+  const rows=[...state.photos.values()].filter(r=>state.selected.has(r.id));
+  if(!rows.length){toast("Selecciona al menos una foto.");return}
+  const ready=rows.filter(r=>r.output);
+  if(!ready.length){toast("Las seleccionadas todavía no están procesadas.");return}
+  const ext=$("formatSelect").value;
+  const files=ready.map(r=>({name:`${safeFileName(r.product)}.${ext}`,blob:r.output}));
+  const zip=await makeZip(files);
+  const a=document.createElement("a");a.href=URL.createObjectURL(zip);a.download=`FERIA_FOTOS_${new Date().toISOString().slice(0,10)}.zip`;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  toast(`${files.length} foto(s) colocadas en el ZIP.`);
+}
+
+async function loadSaved(){
+  loadSettings();
+  try{
+    const rows=await dbAll();
+    for(const r of rows){state.photos.set(r.id,r);state.selected.add(r.id)}
+  }catch(e){console.error(e)}
+  render();
+}
+
+function receiveBlob(blob){
+  state.pendingBlob=blob;
+  $("numberModal").classList.remove("hidden");
+  $("modalProduct").value="";
+  setTimeout(()=>$("modalProduct").focus(),80);
+}
+$("cameraBtn").onclick=()=>$("cameraInput").click();
+$("galleryBtn").onclick=()=>$("galleryInput").click();
+$("cameraInput").onchange=e=>{const f=e.target.files?.[0];if(f)receiveBlob(f);e.target.value=""};
+$("galleryInput").onchange=async e=>{
+  const fs=[...e.target.files||[]];e.target.value="";
+  if(!fs.length)return;
+  if(fs.length===1){receiveBlob(fs[0]);return}
+  // Gallery batch: ask one number per image in sequence.
+  state.galleryQueue=fs; nextGalleryNumber();
+};
+async function nextGalleryNumber(){
+  const f=state.galleryQueue?.shift();
+  if(!f){toast("Fotos agregadas.");return}
+  state.pendingBlob=f; $("numberModal").classList.remove("hidden");$("modalProduct").value="";
+  $("numberModal").dataset.gallery="1"; setTimeout(()=>$("modalProduct").focus(),80);
+}
+$("addBtn").onclick=()=>{const v=$("productInput").value.trim();if(!state.pendingBlob){toast("Primero toma o elige una foto.");return} addPhoto(state.pendingBlob,v);state.pendingBlob=null;$("productInput").value=""};
+$("productInput").addEventListener("keydown",e=>{if(e.key==="Enter")$("addBtn").click()});
+$("cancelModal").onclick=()=>{state.pendingBlob=null;state.galleryQueue=[];$("numberModal").classList.add("hidden")};
+$("confirmModal").onclick=async()=>{
+  const v=$("modalProduct").value.trim(); if(!v){toast("Escribe el número.");return}
+  const b=state.pendingBlob; state.pendingBlob=null; $("numberModal").classList.add("hidden");
+  await addPhoto(b,v);
+  if(state.galleryQueue?.length) nextGalleryNumber(); else $("numberModal").dataset.gallery="";
+};
+$("modalProduct").addEventListener("keydown",e=>{if(e.key==="Enter")$("confirmModal").click()});
+$("selectAll").onchange=()=>{if($("selectAll").checked)[...state.photos.keys()].forEach(id=>state.selected.add(id));else state.selected.clear();render()};
+$("processBtn").onclick=processSelected;
+$("exportBtn").onclick=exportZip;
+$("clearBtn").onclick=async()=>{if(!state.photos.size)return;if(confirm("¿Eliminar todas las fotos guardadas en este dispositivo?")){await dbClear();state.photos.clear();state.selected.clear();render();toast("Lista limpiada.")}};
+
+await loadSaved();
+loadAI();
+</script>
 </body>
 </html>
