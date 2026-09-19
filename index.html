@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Feria Foto → Producto</title>
+<style>
+:root{
+  --bg:#f4f6f8; --card:#fff; --text:#17202a; --muted:#667085;
+  --line:#dfe4ea; --accent:#111827; --accent2:#2563eb;
+  --ok:#138a4b; --warn:#b45309; --danger:#c62828;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+button,input,select{font:inherit}
+button{border:0;border-radius:12px;padding:13px 16px;font-weight:700;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+.app{max-width:1050px;margin:0 auto;padding:16px 14px 34px}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+h1{font-size:23px;margin:0 0 4px}
+.subtitle{color:var(--muted);font-size:14px}
+.badge{padding:7px 10px;border-radius:999px;background:#e9eef5;font-size:12px;font-weight:800;white-space:nowrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:15px;margin-bottom:13px;box-shadow:0 2px 8px #0000000a}
+.camera-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.primary{background:var(--accent);color:#fff}
+.secondary{background:#edf2f7;color:#17202a}
+.blue{background:var(--accent2);color:#fff}
+.green{background:#137a43;color:#fff}
+.danger{background:#fff0f0;color:var(--danger);border:1px solid #ffd2d2}
+.field{display:flex;gap:8px;margin-top:12px}
+.field input{flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:13px 12px;font-size:18px;outline:none}
+.field input:focus{border-color:#6b8de3;box-shadow:0 0 0 3px #2563eb18}
+.settings{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.setting{border:1px solid var(--line);border-radius:12px;padding:10px}
+.setting label{display:block;font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;margin-bottom:5px}
+.setting select{width:100%;border:0;background:transparent;font-weight:700;outline:none}
+.status{display:flex;align-items:center;gap:10px}
+.dot{width:10px;height:10px;border-radius:50%;background:#9aa4b2}
+.dot.ok{background:var(--ok)} .dot.warn{background:#d97706} .dot.busy{background:#2563eb;animation:pulse 1.1s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.progress{height:8px;background:#e9edf2;border-radius:99px;overflow:hidden;margin-top:8px}
+.progress>div{height:100%;width:0;background:#2563eb;transition:width .2s}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.toolbar-left{display:flex;gap:8px;align-items:center}
+.toolbar-right{display:flex;gap:8px;flex-wrap:wrap}
+.checkall{display:flex;align-items:center;gap:8px;font-weight:800}
+input[type=checkbox]{width:19px;height:19px}
+.count{color:var(--muted);font-size:13px}
+.list{display:grid;gap:10px;margin-top:12px}
+.item{display:grid;grid-template-columns:28px 90px 1fr auto;gap:11px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:9px}
+.thumb{width:90px;height:90px;border-radius:10px;object-fit:cover;background:#f1f3f5;border:1px solid var(--line)}
+.item-title{font-weight:900;font-size:16px;word-break:break-word}
+.item-meta{font-size:12px;color:var(--muted);margin-top:3px}
+.state{font-size:12px;font-weight:800;margin-top:7px}
+.state.ok{color:var(--ok)} .state.busy{color:#2563eb}.state.warn{color:var(--warn)} .state.err{color:var(--danger)}
+.item-actions{display:flex;gap:6px;align-items:center}
+.iconbtn{padding:9px 11px;background:#edf2f7;color:#17202a}
+.empty{padding:28px 14px;text-align:center;color:var(--muted);border:1px dashed #cbd3dd;border-radius:14px}
+.hidden{display:none!important}
+.file-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.file-button{display:flex;align-items:center;justify-content:center;text-align:center;border-radius:12px;padding:13px 16px;font-weight:700;cursor:pointer;user-select:none;-webkit-user-select:none;min-height:50px}
+.file-button:active{transform:scale(.99)}
+.help{font-size:12px;color:var(--muted);line-height:1.45}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#111827;color:#fff;padding:12px 15px;border-radius:12px;z-index:20;max-width:90%;font-size:13px;box-shadow:0 8px 30px #0004}
+.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:flex-end;justify-content:center;z-index:30}
+.modal-card{background:#fff;width:100%;max-width:620px;border-radius:20px 20px 0 0;padding:18px}
+.modal-card h2{margin:0 0 8px;font-size:19px}
+.modal-actions{display:flex;gap:8px;margin-top:14px}
+@media(min-width:700px){
+ .modal{align-items:center;padding:20px}.modal-card{border-radius:20px}
+}
+@media(max-width:620px){
+ .settings{grid-template-columns:1fr}
+ .camera-grid{grid-template-columns:1fr}
+ .item{grid-template-columns:24px 72px 1fr}
+ .thumb{width:72px;height:72px}
+ .item-actions{grid-column:3}
+ .item-actions button{flex:1}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Feria Foto → Producto</h1>
+      <div class="subtitle">Toma la foto, asigna el número y deja que la app limpie el fondo.</div>
+    </div>
+    <div class="badge">LOCAL · V3.0</div>
+  </header>
+
+  <section class="card">
+    <div class="camera-grid">
+      <label class="file-button primary" for="cameraInput">📷 Tomar foto</label>
+      <label class="file-button secondary" for="galleryInput">🖼️ Elegir de galería</label>
+    </div>
+    <input id="cameraInput" class="file-input" type="file" accept="image/*" capture="environment">
+    <input id="galleryInput" class="file-input" type="file" accept="image/*" multiple>
+    <div class="field">
+      <input id="productInput" inputmode="text" autocomplete="off" placeholder="Número del producto" aria-label="Número del producto">
+      <button id="addBtn" class="blue">Agregar</button>
+    </div>
+    <div class="help" style="margin-top:8px">Cada foto queda ligada al número que escribas. El nombre final será exactamente ese número + .JPG/.JPEG.</div>
+  </section>
+
+  <section class="card">
+    <div class="status">
+      <span id="statusDot" class="dot"></span>
+      <div style="flex:1">
+        <div id="aiStatus" style="font-weight:900">Preparando IA local…</div>
+        <div id="aiDetail" class="help">La primera vez se descarga y queda en caché del navegador. Las fotos no se envían a un servidor.</div>
+        <div class="progress"><div id="aiProgress"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="settings">
+      <div class="setting">
+        <label>Fondo</label>
+        <select id="bgSelect">
+          <option value="white">Blanco</option>
+          <option value="dark">Oscuro</option>
+        </select>
+      </div>
+      <div class="setting">
+        <label>Formato</label>
+        <select id="formatSelect">
+          <option value="jpg">JPG</option>
+          <option value="jpeg">JPEG</option>
+        </select>
+      </div>
+      <div class="setting">
+        <label>Máximo</label>
+        <select id="maxSelect">
+          <option value="3000">3,000 px</option>
+          <option value="2500">2,500 px</option>
+          <option value="2000">2,000 px</option>
+          <option value="1500">1,500 px</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <label class="checkall"><input id="selectAll" type="checkbox"> Seleccionar todas</label>
+        <span id="countLabel" class="count">0 fotos</span>
+      </div>
+      <div class="toolbar-right">
+        <button id="processBtn" class="secondary">✨ Procesar seleccionadas</button>
+        <button id="exportBtn" class="green">⬇️ ZIP seleccionado</button>
+        <button id="clearBtn" class="danger">Limpiar</button>
+      </div>
+    </div>
+    <div id="list" class="list"></div>
+  </section>
+
+  <section class="card help">
+    <b>Cómo trabaja:</b> las fotos y la configuración se guardan en el dispositivo. La IA intenta aislar el producto, luego lo centra y lo coloca sobre el fondo elegido. La salida nunca supera el lado mayor configurado; por defecto es 3,000 px.
+  </section>
+</div>
+
+<div id="numberModal" class="modal hidden">
+  <div class="modal-card">
+    <h2>Asignar número de producto</h2>
+    <div class="help">La foto ya está tomada. Escribe el número que debe identificarla.</div>
+    <div class="field"><input id="modalProduct" inputmode="text" autocomplete="off" placeholder="Ej. 123456"></div>
+    <div class="modal-actions">
+      <button id="cancelModal" class="secondary" style="flex:1">Cancelar</button>
+      <button id="confirmModal" class="blue" style="flex:1">Agregar y procesar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script>
+(function(){
+'use strict';
+
+const DB_NAME = 'feria-foto-producto-v3';
+const STORE = 'photos';
+const SETTINGS_KEY = 'feria-foto-settings-v3';
+const MODEL_ID = 'studioludens/birefnet-lite-512';
+
+const $ = id => document.getElementById(id);
+const state = {
+  photos: new Map(),
+  selected: new Set(),
+  pendingBlob: null,
+  galleryQueue: [],
+  model: null,
+  processor: null,
+  aiModule: null,
+  loadingPromise: null,
+};
+
+function toast(msg){
+  const el=$('toast');
+  el.textContent=msg;
+  el.classList.remove('hidden');
+  clearTimeout(toast.t);
+  toast.t=setTimeout(()=>el.classList.add('hidden'),3200);
+}
+
+function setAIStatus(text, kind='', progress=null){
+  $('aiStatus').textContent=text;
+  $('statusDot').className='dot '+kind;
+  if(progress!==null) $('aiProgress').style.width=Math.max(0,Math.min(100,progress))+'%';
+}
+
+function saveSettings(){
+  try{
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      bg:$('bgSelect').value,
+      format:$('formatSelect').value,
+      max:$('maxSelect').value
+    }));
+  }catch(e){}
+}
+function loadSettings(){
+  try{
+    const s=JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}');
+    if(s.bg) $('bgSelect').value=s.bg;
+    if(s.format) $('formatSelect').value=s.format;
+    if(s.max) $('maxSelect').value=s.max;
+  }catch(e){}
+}
+$('bgSelect').addEventListener('change',saveSettings);
+$('formatSelect').addEventListener('change',saveSettings);
+$('maxSelect').addEventListener('change',saveSettings);
+
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    if(!window.indexedDB){reject(new Error('IndexedDB no está disponible'));return;}
+    const req=indexedDB.open(DB_NAME,1);
+    req.onupgradeneeded=()=>{
+      const db=req.result;
+      if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE,{keyPath:'id'});
+    };
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||new Error('No se pudo abrir la base local'));
+  });
+}
+async function dbPut(row){
+  const db=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(STORE,'readwrite');
+    tx.objectStore(STORE).put(row);
+    tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+  });
+}
+async function dbAll(){
+  const db=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(STORE,'readonly');
+    const q=tx.objectStore(STORE).getAll();
+    q.onsuccess=()=>res(q.result); q.onerror=()=>rej(q.error);
+  });
+}
+async function dbDelete(id){
+  const db=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).delete(id);
+    tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+  });
+}
+async function dbClear(){
+  const db=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).clear();
+    tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+  });
+}
+
+function safeFileName(s){
+  return String(s).trim()
+    .replace(/[\\/:*?"<>|]+/g,'_')
+    .replace(/\s+/g,'_') || 'producto';
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,m=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+  }[m]));
+}
+function formatBytes(n){
+  return n<1048576 ? (n/1024).toFixed(0)+' KB' : (n/1048576).toFixed(1)+' MB';
+}
+
+async function loadAI(){
+  if(state.model && state.processor) return true;
+  if(state.loadingPromise) return state.loadingPromise;
+
+  state.loadingPromise=(async()=>{
+    try{
+      setAIStatus('Cargando IA local…','busy',5);
+      $('aiDetail').textContent='La IA se descarga una sola vez y queda en caché. Este paso requiere Internet la primera vez.';
+      state.aiModule=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1');
+      const { pipeline }=state.aiModule;
+      // This pipeline has a stable browser output: an RGBA image with the
+      // background removed. We do not depend on internal model tensor names.
+      state.model=await pipeline('background-removal','studioludens/birefnet-lite-512',{
+        device: (navigator.gpu ? 'webgpu' : 'wasm'),
+        dtype: navigator.gpu ? 'fp16' : 'q8',
+        progress_callback:p=>{
+          if(typeof p?.progress==='number') setAIStatus('Descargando IA local…','busy',p.progress);
+        }
+      });
+      state.processor=true;
+      setAIStatus('IA local lista','ok',100);
+      $('aiDetail').textContent='La foto se procesa en el dispositivo. No se envía la fotografía a un servidor.';
+      return true;
+    }catch(err){
+      console.error('AI load error',err);
+      state.model=null;state.processor=null;
+      setAIStatus('Modo local de respaldo','warn',100);
+      $('aiDetail').textContent='La IA no pudo cargarse; la aplicación seguirá funcionando con el recorte local.';
+      return false;
+    }
+  })();
+  return state.loadingPromise;
+}
+function blobToImage(blob){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(blob);
+    const img=new Image();
+    img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('No se pudo abrir la foto'))};
+    img.src=url;
+  });
+}
+function canvasFromImage(img,maxSide){
+  const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+  const ratio=Math.min(1,maxSide/Math.max(iw,ih));
+  const w=Math.max(1,Math.round(iw*ratio)), h=Math.max(1,Math.round(ih*ratio));
+  const c=document.createElement('canvas'); c.width=w;c.height=h;
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  ctx.drawImage(img,0,0,w,h);
+  return c;
+}
+
+async function aiMask(blob,w,h){
+  if(!state.model) throw new Error('IA no lista');
+  const result=await state.model(blob);
+  const rgba=Array.isArray(result)?result[0]:result;
+  if(!rgba) throw new Error('La IA no devolvió una imagen');
+  const rw=rgba.width||w, rh=rgba.height||h;
+  const data=rgba.data;
+  if(!data || data.length<rw*rh*4) throw new Error('Máscara inválida');
+  const small=document.createElement('canvas');small.width=rw;small.height=rh;
+  const sctx=small.getContext('2d');
+  const im=sctx.createImageData(rw,rh);
+  for(let i=0;i<rw*rh;i++){
+    // Background-removal returns RGBA. Alpha is the foreground mask.
+    const a=data[i*4+3];
+    im.data[i*4]=a;im.data[i*4+1]=a;im.data[i*4+2]=a;im.data[i*4+3]=255;
+  }
+  sctx.putImageData(im,0,0);
+  const full=document.createElement('canvas');full.width=w;full.height=h;
+  const f=full.getContext('2d');f.imageSmoothingEnabled=true;f.imageSmoothingQuality='high';
+  f.drawImage(small,0,0,w,h);
+  return full;
+}
+// Offline/local fallback. It samples the border on a small canvas, flood-fills
+// pixels close to that background and scales the mask back to the photo size.
+function localFallbackMask(base){
+  const MAX=900;
+  const scale=Math.min(1,MAX/Math.max(base.width,base.height));
+  const w=Math.max(1,Math.round(base.width*scale)), h=Math.max(1,Math.round(base.height*scale));
+  const small=document.createElement('canvas');small.width=w;small.height=h;
+  const sctx=small.getContext('2d',{willReadFrequently:true});
+  sctx.drawImage(base,0,0,w,h);
+  const im=sctx.getImageData(0,0,w,h),d=im.data;
+  const step=Math.max(1,Math.floor(Math.min(w,h)/90));
+  const samples=[];
+  for(let y=0;y<h;y+=step){
+    for(let x=0;x<w;x+=step){
+      if(x<step*2||y<step*2||x>=w-step*3||y>=h-step*3){
+        const i=(y*w+x)*4;samples.push([d[i],d[i+1],d[i+2]]);
+      }
+    }
+  }
+  const median=a=>{a.sort((x,y)=>x-y);return a[Math.floor(a.length/2)]||0};
+  const bg=[median(samples.map(v=>v[0])),median(samples.map(v=>v[1])),median(samples.map(v=>v[2]))];
+  const seen=new Uint8Array(w*h), q=[];
+  const threshold=62;
+  function similar(p){
+    const i=p*4,dr=d[i]-bg[0],dg=d[i+1]-bg[1],db=d[i+2]-bg[2];
+    return Math.sqrt(dr*dr+dg*dg+db*db)<threshold;
+  }
+  function push(x,y){
+    if(x<0||y<0||x>=w||y>=h)return;
+    const p=y*w+x;if(seen[p]||!similar(p))return;
+    seen[p]=1;q.push(p);
+  }
+  for(let x=0;x<w;x++){push(x,0);push(x,h-1)}
+  for(let y=0;y<h;y++){push(0,y);push(w-1,y)}
+  while(q.length){
+    const p=q.pop(),x=p%w,y=Math.floor(p/w);
+    push(x+1,y);push(x-1,y);push(x,y+1);push(x,y-1);
+  }
+  const outSmall=document.createElement('canvas');outSmall.width=w;outSmall.height=h;
+  const o=outSmall.getContext('2d');const od=o.createImageData(w,h);
+  for(let p=0;p<w*h;p++){
+    const a=seen[p]?0:255;
+    od.data[p*4]=a;od.data[p*4+1]=a;od.data[p*4+2]=a;od.data[p*4+3]=255;
+  }
+  o.putImageData(od,0,0);
+  const full=document.createElement('canvas');full.width=base.width;full.height=base.height;
+  const f=full.getContext('2d');f.imageSmoothingEnabled=true;f.imageSmoothingQuality='high';
+  f.drawImage(outSmall,0,0,full.width,full.height);
+  return full;
+}
+
+function applyMaskAndCrop(imgCanvas,maskCanvas,bg,maxSide){
+  const w=imgCanvas.width,h=imgCanvas.height;
+  const md=maskCanvas.getContext('2d',{willReadFrequently:true}).getImageData(0,0,w,h).data;
+  let minX=w,minY=h,maxX=-1,maxY=-1;
+  // Sample every 2 pixels for large images to keep phones responsive.
+  const stride=(w*h>6000000)?2:1;
+  for(let y=0;y<h;y+=stride){
+    for(let x=0;x<w;x+=stride){
+      if(md[(y*w+x)*4]>35){
+        if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;
+      }
+    }
+  }
+  if(maxX<0) return imgCanvas;
+  const pad=Math.max(10,Math.round(Math.min(w,h)*0.025));
+  minX=Math.max(0,minX-pad);minY=Math.max(0,minY-pad);maxX=Math.min(w-1,maxX+pad);maxY=Math.min(h-1,maxY+pad);
+  const cw=maxX-minX+1,ch=maxY-minY+1;
+  const scale=Math.min(1,maxSide/Math.max(cw,ch));
+  const ow=Math.max(1,Math.round(cw*scale)),oh=Math.max(1,Math.round(ch*scale));
+  const out=document.createElement('canvas');out.width=ow;out.height=oh;
+  const o=out.getContext('2d');o.fillStyle=bg==='dark'?'#171a1f':'#ffffff';o.fillRect(0,0,ow,oh);
+  const temp=document.createElement('canvas');temp.width=cw;temp.height=ch;
+  const tc=temp.getContext('2d');tc.drawImage(imgCanvas,minX,minY,cw,ch,0,0,cw,ch);
+  const td=tc.getImageData(0,0,cw,ch);
+  for(let y=0;y<ch;y++) for(let x=0;x<cw;x++) td.data[(y*cw+x)*4+3]=md[((minY+y)*w+(minX+x))*4];
+  tc.putImageData(td,0,0);o.drawImage(temp,0,0,ow,oh);
+  return out;
+}
+
+function canvasBlob(canvas){
+  return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('No se pudo crear la imagen')),'image/jpeg',0.92));
+}
+
+async function processBlob(blob){
+  const img=await blobToImage(blob);
+  const maxSide=Number($('maxSelect').value)||3000;
+  const base=canvasFromImage(img,maxSide);
+  let mask=null;
+  const aiReady=await loadAI();
+  if(aiReady){
+    try{mask=await aiMask(blob,base.width,base.height)}
+    catch(e){console.warn('AI inference failed',e);setAIStatus('IA falló en esta foto; usando modo local','warn',100);}
+  }
+  if(!mask) mask=localFallbackMask(canvasFromImage(img,Math.min(maxSide,1800)));
+  // localFallbackMask above has its own dimensions; if they differ from base,
+  // use the same base for consistent crop dimensions.
+  if(mask.width!==base.width||mask.height!==base.height) mask=localFallbackMask(base);
+  return await canvasBlob(applyMaskAndCrop(base,mask,$('bgSelect').value,maxSide));
+}
+
+async function addPhoto(blob,product){
+  product=String(product||'').trim();
+  if(!product){toast('Escribe el número del producto.');return false}
+  if([...state.photos.values()].some(p=>p.product===product)){toast('Ese número de producto ya existe.');return false}
+  const id=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random());
+  const row={id,product,original:blob,output:null,status:'queued',created:Date.now()};
+  state.photos.set(id,row);state.selected.add(id);
+  await dbPut(row);render();
+  // Do not block the camera workflow while processing.
+  processOne(id);
+  return true;
+}
+
+async function processOne(id){
+  const row=state.photos.get(id);if(!row)return;
+  row.status='processing';row.error='';render();await dbPut(row);
+  try{
+    row.output=await processBlob(row.original);row.status='done';
+  }catch(e){
+    console.error(e);row.status='error';row.error=e?.message||'Error al procesar';
+  }
+  await dbPut(row);render();
+}
+
+async function processSelected(){
+  const ids=state.selected.size?[...state.selected]:[...state.photos.keys()];
+  if(!ids.length){toast('No hay fotos.');return}
+  for(const id of ids){if(state.photos.has(id))await processOne(id)}
+  toast('Proceso terminado.');
+}
+
+function render(){
+  const list=$('list');list.innerHTML='';
+  const rows=[...state.photos.values()].sort((a,b)=>a.created-b.created);
+  $('countLabel').textContent=`${rows.length} ${rows.length===1?'foto':'fotos'}`;
+  $('selectAll').checked=rows.length>0&&rows.every(r=>state.selected.has(r.id));
+  if(!rows.length){list.innerHTML='<div class="empty">Todavía no hay fotos. Toma la primera y asígnale el número.</div>';return}
+  for(const r of rows){
+    const el=document.createElement('div');el.className='item';
+    const src=r.output||r.original;const url=URL.createObjectURL(src);
+    el.innerHTML=`
+      <input class="pick" type="checkbox" ${state.selected.has(r.id)?'checked':''} aria-label="Seleccionar ${escapeHtml(r.product)}">
+      <img class="thumb" src="${url}" alt="${escapeHtml(r.product)}">
+      <div>
+        <div class="item-title">${escapeHtml(r.product)}</div>
+        <div class="item-meta">${r.output?formatBytes(r.output.size):formatBytes(r.original.size)} · ${r.output?'procesada':'pendiente'}</div>
+        <div class="state ${r.status==='done'?'ok':r.status==='processing'?'busy':r.status==='error'?'err':'warn'}">
+          ${r.status==='done'?'✓ Lista para ZIP':r.status==='processing'?'⏳ Procesando…':r.status==='error'?'⚠ '+escapeHtml(r.error||'Error'):'• En cola'}
+        </div>
+      </div>
+      <div class="item-actions">
+        <button class="iconbtn view" type="button">Ver</button>
+        <button class="iconbtn redo" type="button">↻</button>
+        <button class="iconbtn del" type="button">×</button>
+      </div>`;
+    el.querySelector('.pick').addEventListener('change',e=>{
+      if(e.target.checked)state.selected.add(r.id);else state.selected.delete(r.id);render();
+    });
+    el.querySelector('.view').addEventListener('click',()=>openPreview(r));
+    el.querySelector('.redo').addEventListener('click',()=>processOne(r.id));
+    el.querySelector('.del').addEventListener('click',async()=>{
+      state.photos.delete(r.id);state.selected.delete(r.id);await dbDelete(r.id);render();
+    });
+    list.appendChild(el);
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+  }
+}
+
+function openPreview(r){
+  const url=URL.createObjectURL(r.output||r.original);
+  const m=document.createElement('div');m.className='modal';
+  m.innerHTML=`<div class="modal-card" style="max-width:760px"><h2>${escapeHtml(r.product)}</h2><img src="${url}" style="width:100%;max-height:70vh;object-fit:contain;border-radius:12px;background:#eee"><div class="modal-actions"><button class="secondary close" type="button" style="flex:1">Cerrar</button></div></div>`;
+  m.querySelector('.close').addEventListener('click',()=>{URL.revokeObjectURL(url);m.remove()});
+  document.body.appendChild(m);
+}
+
+function crc32(bytes){let c=0^(-1);for(let i=0;i<bytes.length;i++)c=(c>>>8)^CRC[(c^bytes[i])&255];return(c^(-1))>>>0}
+const CRC=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xedb88320^(c>>>1)):(c>>>1);CRC[n]=c>>>0}
+function u16(n){return new Uint8Array([n&255,(n>>>8)&255])}
+function u32(n){return new Uint8Array([n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255])}
+function cat(...arrs){const total=arrs.reduce((a,x)=>a+x.length,0),out=new Uint8Array(total);let o=0;for(const a of arrs){out.set(a,o);o+=a.length}return out}
+async function makeZip(files){
+  const parts=[],central=[];let offset=0;
+  for(const f of files){
+    const name=new TextEncoder().encode(f.name),data=new Uint8Array(await f.blob.arrayBuffer()),crc=crc32(data);
+    const local=cat(new Uint8Array([80,75,3,4]),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0),name,data);
+    parts.push(local);
+    central.push(cat(new Uint8Array([80,75,1,2]),u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset),name));
+    offset+=local.length;
+  }
+  const cd=cat(...central),body=cat(...parts,cd),eocd=cat(new Uint8Array([80,75,5,6]),u16(0),u16(0),u16(files.length),u16(files.length),u32(cd.length),u32(offset),u16(0));
+  return new Blob([body,eocd],{type:'application/zip'});
+}
+async function exportZip(){
+  const rows=[...state.photos.values()].filter(r=>state.selected.has(r.id)&&r.output);
+  if(!rows.length){toast('Selecciona al menos una foto ya procesada.');return}
+  const ext=$('formatSelect').value==='jpeg'?'jpeg':'jpg';
+  const files=rows.map(r=>({name:safeFileName(r.product)+'.'+ext,blob:r.output}));
+  const zip=await makeZip(files);
+  const url=URL.createObjectURL(zip),a=document.createElement('a');a.href=url;a.download='FERIA_FOTOS_'+new Date().toISOString().slice(0,10)+'.zip';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000);
+  toast(`${files.length} foto(s) exportadas.`);
+}
+
+function openNumberModal(blob,fromGallery=false){
+  state.pendingBlob=blob;
+  $('numberModal').dataset.gallery=fromGallery?'1':'';
+  $('modalProduct').value='';
+  $('numberModal').classList.remove('hidden');
+  setTimeout(()=>$('modalProduct').focus(),100);
+}
+function finishModal(){state.pendingBlob=null;$('numberModal').classList.add('hidden')}
+
+// The file pickers are opened by native <label for=...> controls.
+// This is more reliable on iPhone/iPad and hosted GitHub Pages than calling
+// input.click() on a display:none element.
+$('cameraInput').addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0];
+  e.target.value='';
+  if(f){
+    if(!f.type.startsWith('image/')){toast('El archivo seleccionado no es una imagen.');return;}
+    openNumberModal(f,false);
+  }
+});
+$('galleryInput').addEventListener('change',e=>{
+  const fs=[...(e.target.files||[])].filter(f=>f.type.startsWith('image/'));e.target.value='';
+  if(!fs.length)return;
+  if(fs.length===1){openNumberModal(fs[0],false);return}
+  state.galleryQueue=fs;openNumberModal(state.galleryQueue.shift(),true);
+});
+$('addBtn').addEventListener('click',async()=>{
+  const v=$('productInput').value.trim();
+  if(!state.pendingBlob){toast('Primero toma o elige una foto.');return}
+  if(await addPhoto(state.pendingBlob,v)){state.pendingBlob=null;$('productInput').value=''}
+});
+$('productInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('addBtn').click()});
+$('cancelModal').addEventListener('click',()=>{state.galleryQueue=[];finishModal()});
+$('confirmModal').addEventListener('click',async()=>{
+  const v=$('modalProduct').value.trim();
+  if(!v){toast('Escribe el número del producto.');return}
+  const b=state.pendingBlob;
+  if(!(await addPhoto(b,v)))return;
+  state.pendingBlob=null;
+  $('numberModal').classList.add('hidden');
+  if(state.galleryQueue.length){setTimeout(()=>openNumberModal(state.galleryQueue.shift(),true),100)}
+});
+$('modalProduct').addEventListener('keydown',e=>{if(e.key==='Enter')$('confirmModal').click()});
+$('selectAll').addEventListener('change',()=>{
+  if($('selectAll').checked)[...state.photos.keys()].forEach(id=>state.selected.add(id));
+  else state.selected.clear();
+  render();
+});
+$('processBtn').addEventListener('click',processSelected);
+$('exportBtn').addEventListener('click',exportZip);
+$('clearBtn').addEventListener('click',async()=>{
+  if(!state.photos.size)return;
+  if(confirm('¿Eliminar todas las fotos guardadas en este dispositivo?')){
+    await dbClear();state.photos.clear();state.selected.clear();render();toast('Lista limpiada.');
+  }
+});
+
+async function init(){
+  loadSettings();
+  try{
+    const rows=await dbAll();
+    rows.sort((a,b)=>a.created-b.created).forEach(r=>{state.photos.set(r.id,r);state.selected.add(r.id)});
+  }catch(e){console.error(e);toast('La memoria local del navegador no está disponible.');}
+  render();
+  // Do NOT load AI here. The application must be interactive immediately.
+  setAIStatus('Aplicación lista','ok',0);
+  $('aiDetail').textContent='Cámara y galería están listas. La IA se carga solamente al procesar la primera foto.';
+}
+
+init();
+})();
+</script>
+</body>
+</html>
