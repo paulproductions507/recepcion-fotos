@@ -89,7 +89,7 @@ input[type=checkbox]{width:19px;height:19px}
       <h1>Feria Foto → Producto</h1>
       <div class="subtitle">Toma la foto, asigna el número y deja que la app limpie el fondo.</div>
     </div>
-    <div class="badge">LOCAL · V3.1</div>
+    <div class="badge">LOCAL · V3.2</div>
   </header>
 
   <section class="card">
@@ -111,7 +111,7 @@ input[type=checkbox]{width:19px;height:19px}
       <span id="statusDot" class="dot"></span>
       <div style="flex:1">
         <div id="aiStatus" style="font-weight:900">Preparando IA local…</div>
-        <div id="aiDetail" class="help">La primera vez se descarga y queda en caché del navegador. Las fotos no se envían a un servidor.</div>
+        <div id="aiDetail" class="help">La primera vez se descarga el modelo y queda en caché del navegador. Las fotos se procesan en el dispositivo.</div>
         <div class="progress"><div id="aiProgress"></div></div>
       </div>
     </div>
@@ -161,7 +161,7 @@ input[type=checkbox]{width:19px;height:19px}
   </section>
 
   <section class="card help">
-    <b>Cómo trabaja:</b> las fotos y la configuración se guardan en el dispositivo. La IA intenta aislar el producto, luego lo centra y lo coloca sobre el fondo elegido. La salida nunca supera el lado mayor configurado; por defecto es 3,000 px.
+    <b>Cómo trabaja:</b> las fotos y la configuración se guardan en el dispositivo. La IA aísla el producto, elimina el entorno y luego lo centra sobre el fondo elegido. La salida nunca supera el lado mayor configurado; por defecto es 3,000 px.
   </section>
 </div>
 
@@ -186,7 +186,7 @@ input[type=checkbox]{width:19px;height:19px}
 const DB_NAME = 'feria-foto-producto-v3';
 const STORE = 'photos';
 const SETTINGS_KEY = 'feria-foto-settings-v3';
-const MODEL_ID = 'imgly-isnet-quint8';
+const MODEL_ID = 'imgly-isnet-fp16';
 
 const $ = id => document.getElementById(id);
 const state = {
@@ -298,37 +298,37 @@ async function loadAI(){
 
   state.loadingPromise=(async()=>{
     try{
-      setAIStatus('Preparando IA rápida…','busy',5);
-      $('aiDetail').textContent='La IA usa un modelo cuantizado pequeño y se guarda en caché del navegador. La primera preparación puede tardar; las fotos no quedan bloqueadas por ella.';
+      setAIStatus('Cargando IA de recorte…','busy',5);
+      $('aiDetail').textContent='Usando ISNet FP16: más preciso que el modelo cuantizado anterior. La primera foto puede descargar el modelo; después queda en caché.';
       const mod=await import('https://esm.sh/@imgly/background-removal@1.7.0');
       const removeBackground=mod.default || mod.removeBackground;
-      const preload=mod.preload;
       if(typeof removeBackground!=='function') throw new Error('No se pudo cargar el motor de recorte');
+
       const config={
-        model:'isnet_quint8',
+        model:'isnet_fp16',
         device:navigator.gpu?'gpu':'cpu',
         proxyToWorker:true,
-        output:{format:'image/png',quality:0.9},
+        output:{format:'image/png',quality:1,type:'foreground'},
         progress:(key,current,total)=>{
           if(typeof current==='number' && typeof total==='number' && total>0){
             const pct=Math.round(current/total*100);
-            setAIStatus('Preparando IA rápida…','busy',Math.min(96,pct));
+            setAIStatus('Descargando/preparando IA…','busy',Math.min(96,pct));
           }
         }
       };
-      // Keep the function and configuration together so the first real image
-      // never has to rediscover the model. Preload is best-effort only.
-      if(typeof preload==='function') await preload(config);
+      // Deliberately do NOT call preload(): on mobile it may request many
+      // model chunks at once. The first real photo downloads only what is used.
       state.model=removeBackground;
       state.processor=config;
-      setAIStatus('IA rápida lista','ok',100);
-      $('aiDetail').textContent='El recorte AI trabaja en el dispositivo. Si aún se está preparando, la foto se entrega primero con recorte rápido.';
+      state.aiModule=mod;
+      setAIStatus('IA lista · recorte de alta precisión','ok',100);
+      $('aiDetail').textContent='El producto se recorta con IA antes de colocar el fondo. Las fotos permanecen en el dispositivo.';
       return true;
     }catch(err){
       console.error('AI load error',err);
       state.model=null;state.processor=null;
-      setAIStatus('Recorte rápido activo','warn',100);
-      $('aiDetail').textContent='La IA no pudo prepararse. El recorte rápido local sigue funcionando y no bloquea la aplicación.';
+      setAIStatus('IA no disponible · usando respaldo local','warn',100);
+      $('aiDetail').textContent='La IA no pudo cargarse. Se usará el respaldo local para no perder la foto.';
       return false;
     }
   })();
@@ -471,50 +471,77 @@ async function processFastBlob(blob){
   return await canvasBlob(applyMaskAndCrop(base,mask,$('bgSelect').value,maxSide));
 }
 
+function cleanAlphaCanvas(fg){
+  const w=fg.naturalWidth||fg.width, h=fg.naturalHeight||fg.height;
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(fg,0,0);
+  const im=ctx.getImageData(0,0,w,h), d=im.data;
+  // Remove faint background haze while preserving the solid product edge.
+  // The soft ramp keeps anti-aliased edges instead of making a jagged cut.
+  for(let i=0;i<w*h;i++){
+    const k=i*4, a=d[k+3];
+    if(a<=14) d[k+3]=0;
+    else if(a>=242) d[k+3]=255;
+    else{
+      const t=(a-14)/228;
+      const smooth=t*t*(3-2*t);
+      d[k+3]=Math.round(smooth*255);
+    }
+  }
+  ctx.putImageData(im,0,0);
+  return c;
+}
+
 async function processAIBlob(blob){
   if(!state.model || !state.processor) return null;
   const img=await blobToImage(blob);
   const maxSide=Number($('maxSelect').value)||3000;
-  // AI inference is done on a bounded input. Upscaling the mask to 3,000 px
-  // happens after segmentation and is much cheaper than inferring at full size.
-  const aiSide=Math.min(maxSide,1200);
+  // Give the model a larger working image than V3.1. The export is still
+  // capped at the selected maximum, but the segmentation gets more detail.
+  const aiSide=Math.min(Math.max(maxSide,1800),2200);
   const base=canvasFromImage(img,aiSide);
-  const started=performance.now();
-  const srcBlob=await new Promise((resolve,reject)=>base.toBlob(b=>b?resolve(b):reject(new Error('No se pudo preparar la imagen')),'image/jpeg',0.88));
+  const srcBlob=await new Promise((resolve,reject)=>
+    base.toBlob(b=>b?resolve(b):reject(new Error('No se pudo preparar la imagen')),'image/jpeg',0.95)
+  );
+
+  setAIStatus('Recortando producto con IA…','busy',100);
   const aiBlob=await state.model(srcBlob,state.processor);
-  if(performance.now()-started>12000) throw new Error('AI tardó demasiado en este dispositivo');
   if(!(aiBlob instanceof Blob)) throw new Error('La IA no devolvió una imagen válida');
-  // IMG.LY returns an RGBA image Blob with the background transparent.
+
+  // IMG.LY returns the foreground with transparency.
   const fg=await blobToImage(aiBlob);
-  const small=document.createElement('canvas');small.width=fg.naturalWidth||fg.width;small.height=fg.naturalHeight||fg.height;
-  const sctx=small.getContext('2d',{willReadFrequently:true});sctx.drawImage(fg,0,0);
-  const data=sctx.getImageData(0,0,small.width,small.height).data;
-  const im=sctx.createImageData(small.width,small.height);
-  for(let i=0;i<small.width*small.height;i++){
-    const a=data[i*4+3];
-    im.data[i*4]=a;im.data[i*4+1]=a;im.data[i*4+2]=a;im.data[i*4+3]=255;
-  }
-  sctx.putImageData(im,0,0);
+  const small=cleanAlphaCanvas(fg);
   const mask=document.createElement('canvas');mask.width=base.width;mask.height=base.height;
   const mctx=mask.getContext('2d');mctx.imageSmoothingEnabled=true;mctx.imageSmoothingQuality='high';
   mctx.drawImage(small,0,0,base.width,base.height);
-  return await canvasBlob(applyMaskAndCrop(base,mask,$('bgSelect').value,maxSide));
+
+  const result=applyMaskAndCrop(base,mask,$('bgSelect').value,maxSide);
+  return await canvasBlob(result);
 }
 
 async function refineWithAI(id){
-  const row=state.photos.get(id);if(!row || !state.model || !state.processor) return;
-  // Never hold the photo in a 'processing' state while AI is downloading.
-  row.status='refining';row.error='';render();await dbPut(row);
+  const row=state.photos.get(id);if(!row)return;
+  row.status='processing';row.error='';render();await dbPut(row);
   try{
+    if(!state.model || !state.processor){
+      const ok=await loadAI();
+      if(!ok) throw new Error('IA no disponible');
+    }
     const refined=await processAIBlob(row.original);
-    if(refined){
-      row.output=refined;row.status='done';row.ai=true;
+    if(!refined) throw new Error('La IA no produjo resultado');
+    row.output=refined;row.status='done';row.ai=true;row.error='';
+    await dbPut(row);render();
+  }catch(e){
+    console.warn('AI processing failed, using local fallback:',e);
+    try{
+      row.output=await processFastBlob(row.original);
+      row.status='done';row.ai=false;row.error='';
+      await dbPut(row);render();
+      toast('La IA falló en esta foto; se entregó el respaldo local.');
+    }catch(fallbackErr){
+      row.status='error';row.error=fallbackErr?.message||e?.message||'Error al procesar';
       await dbPut(row);render();
     }
-  }catch(e){
-    console.warn('AI refinement skipped:',e);
-    row.status='done';row.ai=false;row.error='';
-    await dbPut(row);render();
   }
 }
 
@@ -526,27 +553,14 @@ async function addPhoto(blob,product){
   const row={id,product,original:blob,output:null,status:'queued',created:Date.now()};
   state.photos.set(id,row);state.selected.add(id);
   await dbPut(row);render();
-  // Do not block the camera workflow while processing.
+  // AI-first. No artificial time limit and no poor local result shown first.
   processOne(id);
   return true;
 }
 
 async function processOne(id){
   const row=state.photos.get(id);if(!row)return;
-  row.status='processing';row.error='';render();await dbPut(row);
-  try{
-    // FIRST: deliver a result immediately with the local, no-model path.
-    row.output=await processFastBlob(row.original);
-    row.status='done';row.ai=false;
-    await dbPut(row);render();
-    // SECOND: refine silently with AI if/when the small model is ready.
-    // The UI remains usable and the user can export the fast result meanwhile.
-    if(state.model && state.processor) refineWithAI(id);
-    else loadAI().then(ok=>{if(ok) refineWithAI(id);}).catch(()=>{});
-  }catch(e){
-    console.error(e);row.status='error';row.error=e?.message||'Error al procesar';
-    await dbPut(row);render();
-  }
+  await refineWithAI(id);
 }
 
 async function processSelected(){

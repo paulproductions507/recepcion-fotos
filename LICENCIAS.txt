@@ -1,3 +1,5 @@
-V3.1 usa @imgly/background-removal 1.7.0 como motor opcional de refinamiento en navegador.
-La aplicación también tiene un procesamiento local rápido independiente para no bloquear el trabajo.
-Revisar las condiciones de licencia de las dependencias antes de un despliegue comercial.
+FERIA FOTO → PRODUCTO V3.2
+
+La aplicación utiliza @imgly/background-removal 1.7.0 y sus recursos/modelos en tiempo de ejecución.
+
+Antes de una distribución comercial, revisar la licencia vigente del paquete y de todos sus recursos/modelos en las fuentes oficiales del proyecto. La licencia del componente debe ser compatible con el uso previsto de la aplicación.

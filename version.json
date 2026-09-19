@@ -1,8 +1,9 @@
 {
   "app": "feria-foto-producto",
-  "version": "3.1",
+  "version": "3.2",
   "build": "2026-09-19",
-  "architecture": "fast-local-first",
-  "ai": "IMG.LY isnet_quint8, browser-side, background refinement",
-  "max_dimension_default": 3000
+  "architecture": "AI-first",
+  "ai": "IMG.LY isnet_fp16, browser-side, WebGPU when available, no artificial timeout",
+  "fallback": "local border flood-fill only if AI fails",
+  "defaultMax": 3000
 }
