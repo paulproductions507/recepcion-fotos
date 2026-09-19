@@ -1,1 +1,8 @@
-{"app":"Feria Foto → Producto","version":"3.0","date":"2026-09-19","status":"interactive-core-fixed","ai":"studioludens/birefnet-lite-512 via Transformers.js 3.8.1"}
+{
+  "app": "feria-foto-producto",
+  "version": "3.1",
+  "build": "2026-09-19",
+  "architecture": "fast-local-first",
+  "ai": "IMG.LY isnet_quint8, browser-side, background refinement",
+  "max_dimension_default": 3000
+}

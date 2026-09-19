@@ -1,3 +1,3 @@
-La aplicación propia se entrega como HTML/JS/CSS.
-Transformers.js: consultar la licencia de su distribución oficial.
-Modelo BiRefNet Lite 512: MIT, según su ficha pública en Hugging Face.
+V3.1 usa @imgly/background-removal 1.7.0 como motor opcional de refinamiento en navegador.
+La aplicación también tiene un procesamiento local rápido independiente para no bloquear el trabajo.
+Revisar las condiciones de licencia de las dependencias antes de un despliegue comercial.

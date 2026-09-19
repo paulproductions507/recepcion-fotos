@@ -1,12 +1,16 @@
-FERIA FOTO → PRODUCTO V3.0
+FERIA FOTO -> PRODUCTO V3.1
 
-Corrección principal:
-- Cámara y galería usan controles nativos <label for> en lugar de intentar abrir un input display:none mediante JavaScript. Esto evita el fallo de interacción en iPhone/iPad y navegadores móviles.
-- La aplicación es interactiva inmediatamente; la IA NO se carga al iniciar.
-- La IA se carga solamente al procesar una foto.
-- El procesamiento usa el pipeline de background-removal de Transformers.js con BiRefNet Lite 512 y, si falla, usa un recorte local de respaldo.
-- IndexedDB guarda la sesión localmente.
-- ZIP se genera sin librerías externas.
+Cambio principal:
+- El procesamiento NO espera a la IA.
+- Primero genera un resultado rápido con procesamiento local del dispositivo.
+- La IA pequeña/cuántica se prepara en segundo plano y, cuando está lista, mejora el resultado.
+- Si la IA tarda o falla, la foto sigue disponible para ZIP.
+- Cámara, galería, numeración, lista y ZIP no dependen de la IA.
 
-Publicación recomendada: GitHub Pages / HTTPS.
-Archivo de entrada: index.html
+Uso:
+1. Subir index.html a GitHub Pages reemplazando el anterior.
+2. Abrir la página publicada.
+3. Tomar foto o elegir galería.
+4. Escribir número de producto.
+5. La foto queda lista rápidamente.
+6. La IA puede mejorarla posteriormente sin bloquear el flujo.

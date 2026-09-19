@@ -89,7 +89,7 @@ input[type=checkbox]{width:19px;height:19px}
       <h1>Feria Foto → Producto</h1>
       <div class="subtitle">Toma la foto, asigna el número y deja que la app limpie el fondo.</div>
     </div>
-    <div class="badge">LOCAL · V3.0</div>
+    <div class="badge">LOCAL · V3.1</div>
   </header>
 
   <section class="card">
@@ -186,7 +186,7 @@ input[type=checkbox]{width:19px;height:19px}
 const DB_NAME = 'feria-foto-producto-v3';
 const STORE = 'photos';
 const SETTINGS_KEY = 'feria-foto-settings-v3';
-const MODEL_ID = 'studioludens/birefnet-lite-512';
+const MODEL_ID = 'imgly-isnet-quint8';
 
 const $ = id => document.getElementById(id);
 const state = {
@@ -298,28 +298,37 @@ async function loadAI(){
 
   state.loadingPromise=(async()=>{
     try{
-      setAIStatus('Cargando IA local…','busy',5);
-      $('aiDetail').textContent='La IA se descarga una sola vez y queda en caché. Este paso requiere Internet la primera vez.';
-      state.aiModule=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1');
-      const { pipeline }=state.aiModule;
-      // This pipeline has a stable browser output: an RGBA image with the
-      // background removed. We do not depend on internal model tensor names.
-      state.model=await pipeline('background-removal','studioludens/birefnet-lite-512',{
-        device: (navigator.gpu ? 'webgpu' : 'wasm'),
-        dtype: navigator.gpu ? 'fp16' : 'q8',
-        progress_callback:p=>{
-          if(typeof p?.progress==='number') setAIStatus('Descargando IA local…','busy',p.progress);
+      setAIStatus('Preparando IA rápida…','busy',5);
+      $('aiDetail').textContent='La IA usa un modelo cuantizado pequeño y se guarda en caché del navegador. La primera preparación puede tardar; las fotos no quedan bloqueadas por ella.';
+      const mod=await import('https://esm.sh/@imgly/background-removal@1.7.0');
+      const removeBackground=mod.default || mod.removeBackground;
+      const preload=mod.preload;
+      if(typeof removeBackground!=='function') throw new Error('No se pudo cargar el motor de recorte');
+      const config={
+        model:'isnet_quint8',
+        device:navigator.gpu?'gpu':'cpu',
+        proxyToWorker:true,
+        output:{format:'image/png',quality:0.9},
+        progress:(key,current,total)=>{
+          if(typeof current==='number' && typeof total==='number' && total>0){
+            const pct=Math.round(current/total*100);
+            setAIStatus('Preparando IA rápida…','busy',Math.min(96,pct));
+          }
         }
-      });
-      state.processor=true;
-      setAIStatus('IA local lista','ok',100);
-      $('aiDetail').textContent='La foto se procesa en el dispositivo. No se envía la fotografía a un servidor.';
+      };
+      // Keep the function and configuration together so the first real image
+      // never has to rediscover the model. Preload is best-effort only.
+      if(typeof preload==='function') await preload(config);
+      state.model=removeBackground;
+      state.processor=config;
+      setAIStatus('IA rápida lista','ok',100);
+      $('aiDetail').textContent='El recorte AI trabaja en el dispositivo. Si aún se está preparando, la foto se entrega primero con recorte rápido.';
       return true;
     }catch(err){
       console.error('AI load error',err);
       state.model=null;state.processor=null;
-      setAIStatus('Modo local de respaldo','warn',100);
-      $('aiDetail').textContent='La IA no pudo cargarse; la aplicación seguirá funcionando con el recorte local.';
+      setAIStatus('Recorte rápido activo','warn',100);
+      $('aiDetail').textContent='La IA no pudo prepararse. El recorte rápido local sigue funcionando y no bloquea la aplicación.';
       return false;
     }
   })();
@@ -451,21 +460,62 @@ function canvasBlob(canvas){
   return new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('No se pudo crear la imagen')),'image/jpeg',0.92));
 }
 
-async function processBlob(blob){
+async function processFastBlob(blob){
+  const img=await blobToImage(blob);
+  // The quick path intentionally works on a smaller canvas so it finishes
+  // quickly even on an iPhone. The final export is still capped by MAXIMUM.
+  const maxSide=Number($('maxSelect').value)||3000;
+  const workSide=Math.min(maxSide,1400);
+  const base=canvasFromImage(img,workSide);
+  const mask=localFallbackMask(base);
+  return await canvasBlob(applyMaskAndCrop(base,mask,$('bgSelect').value,maxSide));
+}
+
+async function processAIBlob(blob){
+  if(!state.model || !state.processor) return null;
   const img=await blobToImage(blob);
   const maxSide=Number($('maxSelect').value)||3000;
-  const base=canvasFromImage(img,maxSide);
-  let mask=null;
-  const aiReady=await loadAI();
-  if(aiReady){
-    try{mask=await aiMask(blob,base.width,base.height)}
-    catch(e){console.warn('AI inference failed',e);setAIStatus('IA falló en esta foto; usando modo local','warn',100);}
+  // AI inference is done on a bounded input. Upscaling the mask to 3,000 px
+  // happens after segmentation and is much cheaper than inferring at full size.
+  const aiSide=Math.min(maxSide,1200);
+  const base=canvasFromImage(img,aiSide);
+  const started=performance.now();
+  const srcBlob=await new Promise((resolve,reject)=>base.toBlob(b=>b?resolve(b):reject(new Error('No se pudo preparar la imagen')),'image/jpeg',0.88));
+  const aiBlob=await state.model(srcBlob,state.processor);
+  if(performance.now()-started>12000) throw new Error('AI tardó demasiado en este dispositivo');
+  if(!(aiBlob instanceof Blob)) throw new Error('La IA no devolvió una imagen válida');
+  // IMG.LY returns an RGBA image Blob with the background transparent.
+  const fg=await blobToImage(aiBlob);
+  const small=document.createElement('canvas');small.width=fg.naturalWidth||fg.width;small.height=fg.naturalHeight||fg.height;
+  const sctx=small.getContext('2d',{willReadFrequently:true});sctx.drawImage(fg,0,0);
+  const data=sctx.getImageData(0,0,small.width,small.height).data;
+  const im=sctx.createImageData(small.width,small.height);
+  for(let i=0;i<small.width*small.height;i++){
+    const a=data[i*4+3];
+    im.data[i*4]=a;im.data[i*4+1]=a;im.data[i*4+2]=a;im.data[i*4+3]=255;
   }
-  if(!mask) mask=localFallbackMask(canvasFromImage(img,Math.min(maxSide,1800)));
-  // localFallbackMask above has its own dimensions; if they differ from base,
-  // use the same base for consistent crop dimensions.
-  if(mask.width!==base.width||mask.height!==base.height) mask=localFallbackMask(base);
+  sctx.putImageData(im,0,0);
+  const mask=document.createElement('canvas');mask.width=base.width;mask.height=base.height;
+  const mctx=mask.getContext('2d');mctx.imageSmoothingEnabled=true;mctx.imageSmoothingQuality='high';
+  mctx.drawImage(small,0,0,base.width,base.height);
   return await canvasBlob(applyMaskAndCrop(base,mask,$('bgSelect').value,maxSide));
+}
+
+async function refineWithAI(id){
+  const row=state.photos.get(id);if(!row || !state.model || !state.processor) return;
+  // Never hold the photo in a 'processing' state while AI is downloading.
+  row.status='refining';row.error='';render();await dbPut(row);
+  try{
+    const refined=await processAIBlob(row.original);
+    if(refined){
+      row.output=refined;row.status='done';row.ai=true;
+      await dbPut(row);render();
+    }
+  }catch(e){
+    console.warn('AI refinement skipped:',e);
+    row.status='done';row.ai=false;row.error='';
+    await dbPut(row);render();
+  }
 }
 
 async function addPhoto(blob,product){
@@ -485,11 +535,18 @@ async function processOne(id){
   const row=state.photos.get(id);if(!row)return;
   row.status='processing';row.error='';render();await dbPut(row);
   try{
-    row.output=await processBlob(row.original);row.status='done';
+    // FIRST: deliver a result immediately with the local, no-model path.
+    row.output=await processFastBlob(row.original);
+    row.status='done';row.ai=false;
+    await dbPut(row);render();
+    // SECOND: refine silently with AI if/when the small model is ready.
+    // The UI remains usable and the user can export the fast result meanwhile.
+    if(state.model && state.processor) refineWithAI(id);
+    else loadAI().then(ok=>{if(ok) refineWithAI(id);}).catch(()=>{});
   }catch(e){
     console.error(e);row.status='error';row.error=e?.message||'Error al procesar';
+    await dbPut(row);render();
   }
-  await dbPut(row);render();
 }
 
 async function processSelected(){
@@ -513,9 +570,9 @@ function render(){
       <img class="thumb" src="${url}" alt="${escapeHtml(r.product)}">
       <div>
         <div class="item-title">${escapeHtml(r.product)}</div>
-        <div class="item-meta">${r.output?formatBytes(r.output.size):formatBytes(r.original.size)} · ${r.output?'procesada':'pendiente'}</div>
+        <div class="item-meta">${r.output?formatBytes(r.output.size):formatBytes(r.original.size)} · ${r.output?'procesada':'lista'}</div>
         <div class="state ${r.status==='done'?'ok':r.status==='processing'?'busy':r.status==='error'?'err':'warn'}">
-          ${r.status==='done'?'✓ Lista para ZIP':r.status==='processing'?'⏳ Procesando…':r.status==='error'?'⚠ '+escapeHtml(r.error||'Error'):'• En cola'}
+          ${r.status==='done'?'✓ Lista para ZIP':r.status==='processing'?'⏳ Procesando rápido…':r.status==='error'?'⚠ '+escapeHtml(r.error||'Error'):'• En cola'}
         </div>
       </div>
       <div class="item-actions">
@@ -636,9 +693,10 @@ async function init(){
     rows.sort((a,b)=>a.created-b.created).forEach(r=>{state.photos.set(r.id,r);state.selected.add(r.id)});
   }catch(e){console.error(e);toast('La memoria local del navegador no está disponible.');}
   render();
-  // Do NOT load AI here. The application must be interactive immediately.
+  // The application is interactive immediately. AI prewarming is independent.
   setAIStatus('Aplicación lista','ok',0);
-  $('aiDetail').textContent='Cámara y galería están listas. La IA se carga solamente al procesar la primera foto.';
+  $('aiDetail').textContent='Cámara y galería están listas. La IA se prepara en segundo plano; la foto no espera a la IA.';
+  setTimeout(()=>loadAI(),900);
 }
 
 init();
