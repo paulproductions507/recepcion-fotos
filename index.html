@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#111">
-<title>Feria Foto → Producto V5.2</title>
+<title>Feria Foto → Producto V5.3</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",Arial,sans-serif;background:#f5f5f7;color:#111}header{padding:18px 16px 8px}h1{font-size:22px;margin:0 0 4px}p{margin:4px 0;color:#666;font-size:13px}.bar{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 16px}.btn{border:0;border-radius:14px;padding:14px;font-weight:700;font-size:15px;background:#111;color:#fff;text-align:center}.btn.secondary{background:#fff;color:#111;border:1px solid #ddd}.fileInput{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}.settings{display:flex;gap:8px;align-items:center;padding:0 16px 10px}.sw{border:1px solid #ccc;background:#fff;border-radius:999px;padding:8px 12px;font-size:13px}.sw.active{background:#111;color:#fff}.diag{margin:0 16px 8px;padding:10px 12px;border-radius:12px;background:#fff;border:1px solid #ddd;font-size:12px;color:#555}.drop{border:2px dashed #ccc;border-radius:16px;padding:22px;text-align:center;margin:8px 16px;color:#666}.list{padding:8px 16px 120px;display:grid;gap:12px}.card{background:#fff;border-radius:18px;padding:12px;box-shadow:0 2px 10px #00000010;display:grid;grid-template-columns:92px 1fr;gap:12px}.thumb{width:92px;height:92px;border-radius:12px;object-fit:cover;background:#eee}.meta b{display:block;font-size:16px}.status{font-size:13px;margin-top:5px}.ok{color:#138a42}.work{color:#a06a00}.err{color:#c22}.actions{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}.small{font-size:12px;padding:8px 10px;border-radius:10px;border:1px solid #ddd;background:#fff;text-decoration:none;color:#111}.foot{position:fixed;bottom:0;left:0;right:0;background:#fffefeea;backdrop-filter:blur(12px);padding:10px 16px calc(10px + env(safe-area-inset-bottom));border-top:1px solid #ddd}.foot .btn{width:100%}.badge{display:inline-block;font-size:11px;background:#eee;padding:3px 7px;border-radius:999px;margin-left:5px}.hidden{display:none!important}
 </style>
 </head>
 <body>
-<header><h1>Feria Foto → Producto <span class="badge">V5.2</span></h1><p>Segmentación real del objeto · Safari/iPhone · sin servidor de imágenes</p></header>
+<header><h1>Feria Foto → Producto <span class="badge">V5.3</span></h1><p>Segmentación real del objeto · Safari/iPhone · sin servidor de imágenes</p></header>
 <div class="bar">
 <button id="takeBtn" class="btn" type="button">📷 Tomar foto</button>
 <button id="galleryBtn" class="btn secondary" type="button">🖼️ Galería</button>
@@ -24,23 +24,49 @@
 <main id="list" class="list"></main>
 <div class="foot"><button id="zip" class="btn" type="button">⬇️ Exportar seleccionadas (JPG)</button></div>
 <script type="module">
-const CDN='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/vision_bundle.mjs';
-const WASM='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm';
-const MODEL='https://storage.googleapis.com/mediapipe-models/interactive_segmenter_v2/magic_touch/int8/1/interactive_segmentation.task';
+const CDN='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs';
+const WASM='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm';
+const MODEL='https://storage.googleapis.com/mediapipe-models/interactive_segmenter_v2/magic_touch/int8/latest/interactive_segmentation.task';
 const MAX_SIDE=2999, MAX_BYTES=2999000;
 const $=id=>document.getElementById(id), list=$('list'), diag=$('diag');
 let bg='white', seg=null, initPromise=null; const state=new Map();
 function uid(){return crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random())}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function render(){list.innerHTML='';for(const x of state.values()){const d=document.createElement('article');d.className='card';d.dataset.id=x.id;d.innerHTML=`<img class="thumb" src="${x.preview||''}" alt=""><div class="meta"><b>${esc(x.num||'Sin número')}</b><div class="status ${x.status==='Listo'?'ok':x.status==='Error'?'err':'work'}">${esc(x.status)}</div><div class="status">${esc(x.info||'')}</div><div class="actions"><button class="small" data-act="num" type="button">Número</button><button class="small" data-act="toggle" type="button">${x.selected?'✓ Seleccionada':'Seleccionar'}</button>${x.output?`<a class="small" href="${x.output}" download="${esc((x.num||x.id)+'.jpg')}">Ver / guardar</a>`:''}</div></div>`;list.appendChild(d)}}
-async function ensure(){if(seg)return seg;if(initPromise)return initPromise;diag.textContent='IA: descargando modelo…';initPromise=(async()=>{try{const mod=await import(CDN);const vision=await mod.FilesetResolver.forVisionTasks(WASM);let s;try{s=await mod.InteractiveSegmenter.createFromOptions(vision,{baseOptions:{modelAssetPath:MODEL,delegate:'GPU'},outputConfidenceMasks:true});diag.textContent='IA: lista ✓ GPU'}catch(e){s=await mod.InteractiveSegmenter.createFromOptions(vision,{baseOptions:{modelAssetPath:MODEL,delegate:'CPU'},outputConfidenceMasks:true});diag.textContent='IA: lista ✓ CPU'}seg=s;return s}catch(e){initPromise=null;diag.textContent='IA: error — '+(e?.message||e);throw e}})();return initPromise}
+async function ensure(){
+  if(seg) return seg;
+  if(initPromise) return initPromise;
+  diag.textContent='IA: descargando motor compatible…';
+  initPromise=(async()=>{
+    try{
+      const mod=await import(CDN);
+      const vision=await mod.FilesetResolver.forVisionTasks(WASM);
+      const base={modelAssetPath:MODEL};
+      try{
+        seg=await mod.InteractiveSegmenter.createFromOptions(vision,{baseOptions:{...base,delegate:'GPU'}});
+        diag.textContent='IA: lista ✓ GPU';
+      }catch(gpuErr){
+        console.warn('GPU no disponible, probando CPU',gpuErr);
+        seg=await mod.InteractiveSegmenter.createFromOptions(vision,{baseOptions:{...base,delegate:'CPU'}});
+        diag.textContent='IA: lista ✓ CPU';
+      }
+      return seg;
+    }catch(e){
+      initPromise=null;
+      const msg=e?.message||String(e);
+      diag.textContent='IA: error de inicialización — '+msg;
+      throw e;
+    }
+  })();
+  return initPromise;
+}
 function loadImage(file){return new Promise((resolve,reject)=>{const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{URL.revokeObjectURL(u);resolve(im)};im.onerror=()=>{URL.revokeObjectURL(u);reject(new Error('No se pudo leer la foto.'))};im.src=u})}
 function resizeCanvas(im){let w=im.naturalWidth,h=im.naturalHeight;if(Math.max(w,h)>MAX_SIDE){const k=MAX_SIDE/Math.max(w,h);w=Math.round(w*k);h=Math.round(h*k)}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);return c}
 function roiPoints(){return [
 {x:.50,y:.50},{x:.42,y:.50},{x:.58,y:.50},{x:.50,y:.42},{x:.50,y:.58},{x:.38,y:.42},{x:.62,y:.42},{x:.38,y:.58},{x:.62,y:.58}
 ]}
 function maskScore(mask){const a=mask.getAsFloat32Array(),w=mask.width,h=mask.height;let total=0,inside=0,edge=0,peak=0;const cx=w/2,cy=h/2;for(let y=0;y<h;y++){for(let x=0;x<w;x++){const v=a[y*w+x];if(v>.35)total++;if(Math.abs(x-cx)<w*.18&&Math.abs(y-cy)<h*.18)inside+=v;if(x<w*.05||x>w*.95||y<h*.05||y>h*.95)edge+=v;if(v>peak)peak=v}}const area=total/(w*h);const center=inside/(w*h*.1296);const edgeRatio=edge/Math.max(1,total);if(area<.003||area>.94)return -999;return center*3 + (1-edgeRatio)*2 + Math.min(area/.35,1)-Math.abs(area-.35)*.8}
-function pickMask(s){let best=null,bestScore=-Infinity;for(const p of roiPoints()){const m=s.segment([{brushMode:1,point:[p],isCompleted:true}]);if(!m)continue;const score=maskScore(m);if(score>bestScore){if(best&&best.close)best.close();best=m;bestScore=score}else if(m.close)m.close()}return best}
+function pickMask(s){let best=null,bestScore=-Infinity;for(const p of roiPoints()){let m=null;try{m=s.segment([{brushMode:1,point:[p],isCompleted:true}]);}catch(e){console.warn('segment error',p,e);continue}if(!m)continue;const score=maskScore(m);if(score>bestScore){if(best&&best.close)best.close();best=m;bestScore=score}else if(m.close)m.close()}return best}
 function compose(canvas,mask){const mw=mask.width,mh=mask.height,arr=mask.getAsFloat32Array(),w=canvas.width,h=canvas.height;const out=document.createElement('canvas');out.width=w;out.height=h;const ctx=out.getContext('2d');ctx.fillStyle=bg==='white'?'#fff':'#111';ctx.fillRect(0,0,w,h);const src=canvas.getContext('2d').getImageData(0,0,w,h);const d=src.data;for(let y=0;y<h;y++){for(let x=0;x<w;x++){const fx=x*(mw-1)/Math.max(1,w-1),fy=y*(mh-1)/Math.max(1,h-1),x0=Math.floor(fx),y0=Math.floor(fy),x1=Math.min(mw-1,x0+1),y1=Math.min(mh-1,y0+1),dx=fx-x0,dy=fy-y0;const a=arr[y0*mw+x0]*(1-dx)*(1-dy)+arr[y0*mw+x1]*dx*(1-dy)+arr[y1*mw+x0]*(1-dx)*dy+arr[y1*mw+x1]*dx*dy;const aa=Math.max(0,Math.min(1,(a-.08)/.78));d[(y*w+x)*4+3]=Math.round(aa*255)}}ctx.putImageData(src,0,0);const final=document.createElement('canvas');final.width=w;final.height=h;const f=final.getContext('2d');f.fillStyle=bg==='white'?'#fff':'#111';f.fillRect(0,0,w,h);f.drawImage(out,0,0);return final}
 async function toJpg(canvas){let q=.96,blob;do{blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',q));q-=.04}while(blob&&blob.size>MAX_BYTES&&q>=.72);let c=canvas;while(blob&&blob.size>MAX_BYTES&&Math.max(c.width,c.height)>1800){const k=.92,n=document.createElement('canvas');n.width=Math.round(c.width*k);n.height=Math.round(c.height*k);n.getContext('2d').drawImage(c,0,0,n.width,n.height);c=n;blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.88))}return {blob,canvas:c}}
 async function process(x){const t=performance.now();try{x.status='Preparando IA…';render();const s=await ensure();x.status='Separando producto…';x.info='Analizando el objeto principal';render();const im=await loadImage(x.file),canvas=resizeCanvas(im);s.setImage(canvas);const mask=pickMask(s);if(!mask)throw new Error('La IA no encontró un objeto claro en la foto.');x.status='Creando foto de estudio…';render();const out=compose(canvas,mask);mask.close();const r=await toJpg(out);if(!r.blob)throw new Error('No se pudo generar el JPG.');if(x.output)URL.revokeObjectURL(x.output);x.output=URL.createObjectURL(r.blob);x.preview=x.output;x.status='Listo';x.info=`${Math.round(r.blob.size/1024)} KB · ${r.canvas.width}×${r.canvas.height}px · ${((performance.now()-t)/1000).toFixed(1)} s`;render()}catch(e){console.error(e);x.status='Error';x.info=(e?.message||String(e)).slice(0,240);render()}}

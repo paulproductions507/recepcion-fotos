@@ -1,9 +1,7 @@
-FERIA FOTO → PRODUCTO V5
+FERIA FOTO -> PRODUCTO V5.3
 
-Esta versión abandona los recortes por color y usa MediaPipe Interactive Segmenter, un segmentador interactivo que corre en el navegador/dispositivo. La aplicación genera automáticamente varios puntos positivos alrededor del centro de la foto para identificar el producto principal, y usa la máscara resultante para reemplazar el entorno por blanco u oscuro.
+Esta version corrige el fallo de V5.2: el SDK de MediaPipe estaba fijado a 0.10.35 mientras se cargaba el modelo Interactive Segmenter v2 actual, provocando INVALID_ARGUMENT / model is not a valid Flatbuffer buffer.
 
-Uso: subir index.html a GitHub Pages o cualquier hosting HTTPS y abrirlo desde Safari en iPhone.
+V5.3 usa @mediapipe/tasks-vision 1.0.1 y el modelo Interactive Segmenter v2 Magic Touch int8/latest, siguiendo la configuracion actual documentada por Google.
 
-Nota: el modelo se descarga la primera vez. Después queda en caché del navegador cuando es posible. Las fotos no se envían a un servidor para la segmentación; MediaPipe procesa la entrada en el dispositivo.
-
-Licencia: MediaPipe Tasks está bajo Apache-2.0. Revisar las licencias de dependencias/CDN antes de distribución comercial.
+Uso: sustituir el index.html anterior en GitHub Pages.
